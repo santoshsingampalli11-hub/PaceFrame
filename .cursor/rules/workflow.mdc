@@ -1,0 +1,21 @@
+---
+description: Capstone goal, V1 dataset, build order, and how to work
+alwaysApply: true
+---
+
+# Workflow
+
+This is a 2–3 month B.Tech capstone and the V1 prototype of a future cricket fast-bowling biomechanics product.
+
+**Goal:** analyze standardized side-on smartphone video of cricket fast bowling and extract a small set of scientifically defensible 2D kinematic measurements.
+
+**V1 data:** about 11–12 bowlers, about 5–8 usable deliveries each.
+
+**Build order:** (1) prove standardized videos process reliably, (2) validate measurements, (3) build the web app around the validated engine.
+
+Do not add features before the core analysis pipeline works. Do not implement the full application unless explicitly asked.
+
+- Do not modify unrelated files.
+- Before major multi-file features, write a short plan and wait for approval.
+- Prefer small, testable changes over large generated dumps.
+- Explain important technical decisions in simple language.

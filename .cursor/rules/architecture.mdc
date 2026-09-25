@@ -1,0 +1,14 @@
+---
+description: Modules, replaceable pose layer, stack, and tests
+alwaysApply: true
+---
+
+# Architecture
+
+Keep these as **separate modules**: pose estimation, phase detection, biomechanics calculations, validation, backend/API, frontend.
+
+Pose estimation must be **replaceable** without rewriting the biomechanics engine. Use a stable intermediate pose/joint interface.
+
+Stack: Python, OpenCV, MediaPipe Pose, NumPy, FastAPI, React + TypeScript. SQLite only if persistence is needed.
+
+Write tests for important calculations.

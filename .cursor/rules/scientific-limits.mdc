@@ -1,0 +1,16 @@
+---
+description: Scientific limits for 2D cricket bowling video analysis
+alwaysApply: true
+---
+
+# Scientific limits
+
+This is a **2D / single-camera** smartphone video system, not laboratory motion capture.
+
+Never claim: laboratory-grade 3D biomechanics; exact ground reaction forces; joint loading; internal tissue forces; medical or injury prediction.
+
+Never invent biomechanical thresholds or scientific findings.
+
+Every metric must document: definition, calculation method, bowling phase, scientific justification, and validation method.
+
+If a video is unsuitable, **reject it**. Do not return an unreliable number.
