@@ -4,9 +4,10 @@ Python backend for the Fast Bowling V1 prototype. It currently has:
 
 - a FastAPI app that serves identification and health checks,
 - a video module that opens local video files with OpenCV and reads their metadata and frames, and
-- a pose module that runs MediaPipe Pose on those frames and returns body landmarks.
+- a pose module that runs MediaPipe Pose on those frames and returns body landmarks, and
+- a quality module that summarises pose coverage and tracking diagnostics from those landmarks.
 
-**Phase 3.5 (pose/video quality gates) and Phase 4 (bowling-phase detection) are not implemented.** There are no cricket-specific biomechanical metrics.
+**Quality diagnostics do not accept or reject videos.** Phase 4 (bowling-phase detection) is not implemented. There are no cricket-specific biomechanical metrics.
 
 Requires Python 3.12.
 
@@ -268,6 +269,30 @@ The pipeline was run on one real phone clip of a bowling run-up. It was not stan
 
 `geometry.py` contains only plane geometry: `Point2D`, Euclidean `distance`, and the unsigned interior angle `angle_abc_degrees` (vertex at B, result in degrees, range 0..180). It does not import MediaPipe, OpenCV, or FastAPI, and it does not define bowling metrics, phases, or thresholds.
 
+## Quality diagnostics (`app/quality/`)
+
+`diagnose_pose_frames(frames)` summarises a sequence of generic `PoseFrame` results. It does not import MediaPipe or FastAPI.
+
+| Output | Meaning |
+| --- | --- |
+| `pose_coverage` | Detected-pose frames divided by sequence length. Detection is not measurement accuracy. |
+| `longest_run_without_pose`, `missing_pose_run_count` | Gaps in detection in the given sequence |
+| `landmark_signals` | Per-landmark counts and mean model visibility/presence where those scores exist. Visibility is not accuracy. |
+| `hip_centre_motion` | Normalized 2D image-coordinate displacement of the midpoint of `left_hip` and `right_hip` between consecutive sequence frames. Uses landmark `x`,`y` directly (`hypot(dx, dy)`); not pixels, metres, centre of mass, stride, or velocity. Missing poses and missing hips are not bridged. |
+
+There is no pass/fail field and no acceptance threshold.
+
+```python
+from app.pose import estimate_video_poses
+from app.pose.mediapipe_estimator import MediaPipePoseEstimator
+from app.quality import diagnose_pose_frames
+
+with MediaPipePoseEstimator() as estimator:
+    poses = list(estimate_video_poses("delivery.mp4", estimator))
+
+print(diagnose_pose_frames(poses))
+```
+
 ## Dataset templates
 
 The repository root has `fast_bowling_dataset/` with header-only CSV schemas for metadata, manual phase labels, landmarks, measurements, and validation. See that folder's README. No videos or measurements are stored there yet.
@@ -280,7 +305,7 @@ Known benign pytest warning: Starlette reports that `TestClient` prefers a packa
 
 ## Intentionally not implemented
 
-- Phase 3.5: pose/video quality gates and acceptance/rejection thresholds
+- Pose/video accept/reject thresholds (diagnostics exist; gates do not)
 - Phase 4: automatic BFC / FFC / release detection
 - Cricket-specific biomechanical measurements (knee angle interpretation, stride, release height, scoring)
 - Video upload API

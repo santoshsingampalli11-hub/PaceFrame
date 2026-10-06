@@ -13,7 +13,7 @@ This is a single-camera smartphone system, not laboratory motion capture. It doe
 | 3. Pose estimation (MediaPipe Tasks) | Hardened |
 | 2D geometry helpers (`distance`, unsigned vertex angle) | Complete |
 | Dataset templates | Prepared |
-| 3.5 Pose/video quality gates | **Not started** |
+| 3.5 Pose quality diagnostics (no accept/reject) | Started |
 | 4. Bowling phase detection | **Not started** |
 | Biomechanical metrics | **Not started** |
 
@@ -27,7 +27,8 @@ Video file
   → PoseEstimator abstraction
   → PoseFrame / generic landmarks
   → 2D geometry (distance, unsigned angle)
-  → (Phase 3.5 quality gates and Phase 4 phase detection are not implemented)
+  → quality diagnostics (coverage, missing-pose runs, visibility, hip-centre motion)
+  → (accept/reject gates and Phase 4 phase detection are not implemented)
 ```
 
 MediaPipe is isolated in `backend/app/pose/mediapipe_estimator.py`. Later biomechanics code must use only the generic landmark types.
@@ -38,6 +39,6 @@ See `backend/README.md` for virtual environment, dependencies, the pose model, F
 
 ## Next step
 
-Record or obtain a **standardized side-on** bowling video (tripod, bowler large in frame, whole delivery including release). Run the debug overlay. Phase 3.5 (quality gates) comes after that, then Phase 4 (phase detection). Neither has started.
+Record or obtain a **standardized side-on** bowling video (tripod, bowler large in frame, whole delivery including release). Run the debug overlay, then inspect `diagnose_pose_frames` output. Accept/reject gates and Phase 4 have not started.
 
 Do not use the earlier moving-camera run-up clip, or broadcast stress-test footage, as validation, training data, or ground truth.
