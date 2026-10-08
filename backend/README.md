@@ -5,9 +5,10 @@ Python backend for the Fast Bowling V1 prototype. It currently has:
 - a FastAPI app that serves identification and health checks,
 - a video module that opens local video files with OpenCV and reads their metadata and frames, and
 - a pose module that runs MediaPipe Pose on those frames and returns body landmarks, and
-- a quality module that summarises pose coverage and tracking diagnostics from those landmarks.
+- a quality module that summarises pose coverage and tracking diagnostics from those landmarks, and
+- an annotation module for manual BFC / FFC / release reference labels.
 
-**Quality diagnostics do not accept or reject videos.** Phase 4 (bowling-phase detection) is not implemented. There are no cricket-specific biomechanical metrics.
+**Quality diagnostics do not accept or reject videos.** Manual phase labels are annotator-selected frame indices, not laboratory ground truth. Automatic BFC / FFC / release detection is not implemented. There are no cricket-specific biomechanical metrics.
 
 Requires Python 3.12.
 
@@ -292,6 +293,20 @@ with MediaPipePoseEstimator() as estimator:
 
 print(diagnose_pose_frames(poses))
 ```
+
+## Manual phase labels (`app/annotations/`)
+
+`PhaseLabel` stores one delivery's manual reference frames:
+
+- **BFC** — back-foot contact
+- **FFC** — front-foot contact
+- **Release** — ball release
+
+Frame indices are **0-based**, matching the video reader. Any subset may be empty. Present frames must be integers `>= 0` and strictly ordered (BFC < FFC < Release). These labels are not biomechanical measurements and will later be used to evaluate automatic Phase 4 detection. Automatic detection is not implemented.
+
+CSV read/write uses the existing `fast_bowling_dataset/phase_labels/phase_labels.csv` header. Duplicate `(bowler_id, delivery_id)` rows are rejected. Updates replace that key in place and keep file order. `validate_phase_labels(label, total_frame_count)` checks bounds without opening a video.
+
+Do not add fabricated deliveries to the template CSV.
 
 ## Dataset templates
 

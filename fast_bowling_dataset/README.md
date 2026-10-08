@@ -39,19 +39,21 @@ fast_bowling_dataset/
 
 ## Phase labels (`phase_labels/phase_labels.csv`)
 
-Manual labels only. Automatic BFC / FFC / release detection is **not implemented**.
+Manual reference labels only. They are not laboratory ground truth. Automatic BFC / FFC / release detection is **not implemented**.
 
 | Field | Meaning |
 | --- | --- |
 | `bowler_id` | Same ID as the metadata row |
 | `delivery_id` | Same ID as the metadata row |
-| `bfc_frame` | Frame index of back-foot contact, or empty |
-| `ffc_frame` | Frame index of front-foot contact, or empty |
-| `release_frame` | Frame index of ball release, or empty |
+| `bfc_frame` | 0-based frame index of back-foot contact, or empty |
+| `ffc_frame` | 0-based frame index of front-foot contact, or empty |
+| `release_frame` | 0-based frame index of ball release, or empty |
 | `labeler` | Who labelled the frames (initials or role, not a full name) |
 | `notes` | Free text |
 
-Do not invent values for these columns.
+Partial rows are allowed (for example BFC filled, FFC and release empty). Present frames must increase in time: BFC < FFC < Release. Do not invent values for these columns.
+
+The Python helpers are `app.annotations` (`PhaseLabel`, `read_phase_labels`, `write_phase_labels`, `upsert_phase_label`). They do not detect phases from video.
 
 Stress-test clips under `raw_videos/stress_tests/` are **engineering-only**. They are not participant data, not scientific validation, not training data, and not ground truth. The videos themselves stay gitignored; the folder README may be committed.
 
