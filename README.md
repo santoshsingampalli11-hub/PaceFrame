@@ -15,6 +15,7 @@ This is a single-camera smartphone system, not laboratory motion capture. It doe
 | Dataset templates | Prepared |
 | 3.5 Pose quality diagnostics (no accept/reject) | Complete |
 | Manual phase-label infrastructure | Complete |
+| Local real-video annotation window | Complete |
 | 4. Automatic bowling phase detection | **Not started** |
 | Biomechanical metrics | **Not started** |
 
@@ -29,7 +30,7 @@ Video file
   → PoseFrame / generic landmarks
   → 2D geometry (distance, unsigned angle)
   → quality diagnostics (coverage, missing-pose runs, visibility, hip-centre motion)
-  → manual phase labels (BFC / FFC / release reference frames)
+  → manual phase labels (BFC / FFC / release reference frames, marked on the real video)
   → (automatic phase detection is not implemented)
 ```
 

@@ -55,6 +55,8 @@ Partial rows are allowed (for example BFC filled, FFC and release empty). Presen
 
 The Python helpers are `app.annotations` (`PhaseLabel`, `read_phase_labels`, `write_phase_labels`, `upsert_phase_label`). They do not detect phases from video.
 
+Clicked marker positions, when you choose to save them from the local annotation window, go in a **separate** file (`marker_positions.csv` by default). That file is not this phase-label schema. Do not add marker columns here. Do not invent phase frames in the template.
+
 Stress-test clips under `raw_videos/stress_tests/` are **engineering-only**. They are not participant data, not scientific validation, not training data, and not ground truth. The videos themselves stay gitignored; the folder README may be committed.
 
 ## Landmark export (`landmarks/Bxx_Dyy.csv`)

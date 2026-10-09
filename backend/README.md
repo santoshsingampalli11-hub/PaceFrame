@@ -308,6 +308,45 @@ CSV read/write uses the existing `fast_bowling_dataset/phase_labels/phase_labels
 
 Do not add fabricated deliveries to the template CSV.
 
+## Local annotation window
+
+This opens **your** video and shows its decoded frames. It does not create a bowler animation, and it does not decide BFC, FFC, or release.
+
+From the `backend` directory:
+
+```powershell
+python -m app.annotations.annotate --video path\to\delivery.mp4 --bowler B01 --delivery D01 --labeler SS
+```
+
+`--bowler` and `--delivery` are required anonymous ids. `--labels` and `--markers` choose the two output files independently. Their defaults are the dataset template and `marker_positions.csv` beside it. Engineering runs must pass both flags and write under `debug_output/`, which is gitignored. Do not point a smoke test at `fast_bowling_dataset/phase_labels/phase_labels.csv`.
+
+The two files are saved one after the other. That is not one atomic transaction. If the phase-label file is written and the marker file then fails, the window reports that failure and the delivery stays unsaved. A click is restored only when its frame matches the saved event frame. A side file next to the phase-label CSV records the video **file name** for each delivery. Opening a different video with the same bowler and delivery ids does not load those labels until you press L.
+
+| Key | Action |
+| --- | --- |
+| Right arrow or D | Next decoded frame |
+| Left arrow or A | Previous decoded frame |
+| G, digits, Enter | Jump to a zero-based frame (decoded from the start, not a container seek) |
+| 1, 2, 3 | Select BFC, FFC, or Release |
+| Left click | Store the selected event on the **current** frame at that point on the bowler |
+| C | Clear the selected event and its click |
+| T | Toggle optional MediaPipe dots (hips, knees, ankles, feet, shoulders, elbows, wrists) |
+| Space | Play or pause |
+| S, then Y | Save. Nothing is written until Y |
+| Q or Esc | Quit. If there are unsaved edits, Y discards them |
+
+Three different things can appear on a frame:
+
+1. **Event frame** — the zero-based index you chose for BFC (back-foot contact), FFC (front-foot contact), or release. Stored in `phase_labels.csv`.
+2. **Manual marker** — where you clicked on that same frame. Stored only in the marker sidecar. It is not a measured joint or ball coordinate.
+3. **Pose overlay** — optional MediaPipe dots on the real frame. Turn them off with T. They are not BFC, FFC, or release, and marking still works if pose fails.
+
+The picture keeps the video's aspect ratio. Clicks are read in the shown frame, not scaled a second time by the window size, so a resized or high-DPI window does not move the saved point. Clicks in the black margin are ignored. Press **P** to cycle the pose-dot color. The default is a black center with a white ring. Color does not move a landmark or make it more accurate. Press **R** and drag a box if you want those dots limited to the bowler. That box is not tracking: if the bowler leaves it, press **R** and draw it again, or press **U** to use the full frame. Press **F** to correct one foot landmark, then **[** or **]** to choose the athlete's left or right ankle, heel, or foot index. Click only if that point is visible. **X** removes the correction and leaves the raw prediction. **K** switches among raw dots, corrections, and both. Corrections are stored in a separate file and are not mixed into the pose result or the event markers. Dots can still sit on the grass. They never move the gold, green, or magenta clicks. Timestamps use `index / encoded fps`. The header frame count can disagree with the number of decoded frames; the tool shows both once decoding reaches the end.
+
+For a first standardized clip, use ids `B01` and `D01`, step to the frame where the back foot actually meets the ground, press 1, and click that contact point. Repeat for the front foot and for the frame where the ball leaves the hand. If a moment is not clear, leave it unset. Then press S and Y.
+
+The source video is not modified.
+
 ## Dataset templates
 
 The repository root has `fast_bowling_dataset/` with header-only CSV schemas for metadata, manual phase labels, landmarks, measurements, and validation. See that folder's README. No videos or measurements are stored there yet.
