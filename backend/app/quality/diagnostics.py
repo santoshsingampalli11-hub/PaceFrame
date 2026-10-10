@@ -49,7 +49,8 @@ class HipCentreMotion:
     ``x`` and ``y`` are the landmark image-normalized coordinates (fraction of
     image width and height). They are image-space coordinates, not metres.
 
-    Between two consecutive sequence frames that both have a valid hip centre:
+    Between two frames that both have a valid hip centre and whose frame
+    indices differ by exactly 1:
 
         movement = hypot(current_x - previous_x, current_y - previous_y)
 
@@ -58,7 +59,7 @@ class HipCentreMotion:
     measurement accuracy. Pixel conversion is not used, so the value does not
     depend on image resolution or portrait vs landscape pixel aspect.
 
-    Pairs are adjacent items in the given sequence only. Missing poses, missing
+    A skipped frame index is not treated as one step. Missing poses, missing
     hips, and other gaps are not bridged.
     """
 
@@ -187,13 +188,16 @@ def _landmark_signals(frames: Sequence[PoseFrame]) -> tuple[LandmarkSignalSummar
 def _hip_centre_motion(frames: Sequence[PoseFrame]) -> HipCentreMotion:
     displacements: list[float] = []
     previous_centre: Point2D | None = None
+    previous_index: int | None = None
     previous_valid = False
 
     for frame in frames:
         centre = _hip_centre_normalized(frame) if frame.pose_detected else None
-        if previous_valid and previous_centre is not None and centre is not None:
+        consecutive = previous_index is not None and frame.frame_index - previous_index == 1
+        if previous_valid and previous_centre is not None and centre is not None and consecutive:
             displacements.append(distance(previous_centre, centre))
         previous_centre = centre
+        previous_index = frame.frame_index
         previous_valid = frame.pose_detected and centre is not None
 
     if not displacements:

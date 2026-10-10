@@ -471,6 +471,194 @@ def test_marker_write_failure_leaves_the_delivery_unsaved(tmp_path: Path, monkey
     assert stored[1].bfc_frame == 4
 
 
+def test_unsaved_foot_correction_blocks_quit(tmp_path: Path) -> None:
+    from app.annotations.foot_corrections import FootReview
+
+    path = tmp_path / "clip.avi"
+    _write_clip(path, count=2)
+    session = _session()
+    feet = FootReview("a" * 64, "B01", "D01")
+    feet.place(0, 0.2, 0.3)
+    with FrameCursor(path) as cursor:
+        mode, _jump, status, playing = _handle_key(
+            ord("q"),
+            "view",
+            "",
+            "",
+            False,
+            cursor,
+            session,
+            _PoseStub(),
+            tmp_path / "phase_labels.csv",
+            tmp_path / "marker_positions.csv",
+            feet=feet,
+        )
+    assert mode == "confirm_quit"
+    assert playing is False
+    assert session.dirty is False
+    assert feet.dirty is True
+    assert status == ""
+
+
+def test_failed_foot_write_keeps_the_delivery_unsaved(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.annotations.foot_corrections import FootCorrectionError, FootReview
+
+    path = tmp_path / "clip.avi"
+    _write_clip(path, count=2)
+    session = _session()
+    session.arm("bfc")
+    session.place(0, 0.2, 0.2)
+    feet = FootReview("b" * 64, "B01", "D01")
+    feet.place(0, 0.4, 0.5)
+
+    def fail_feet(*_args: object, **_kwargs: object) -> None:
+        raise FootCorrectionError("Could not write foot_corrections.csv.")
+
+    monkeypatch.setattr("app.annotations.annotate.replace_delivery_foot_corrections", fail_feet)
+    with FrameCursor(path) as cursor:
+        mode, _jump, status, playing = _handle_key(
+            ord("y"),
+            "confirm_save",
+            "",
+            "",
+            False,
+            cursor,
+            session,
+            _PoseStub(),
+            tmp_path / "phase_labels.csv",
+            tmp_path / "marker_positions.csv",
+            feet=feet,
+            foot_path=tmp_path / "foot_corrections.csv",
+        )
+        quit_mode, _quit_jump, _quit_status, _quit_playing = _handle_key(
+            ord("q"),
+            mode,
+            "",
+            status,
+            playing,
+            cursor,
+            session,
+            _PoseStub(),
+            tmp_path / "phase_labels.csv",
+            tmp_path / "marker_positions.csv",
+            feet=feet,
+            foot_path=tmp_path / "foot_corrections.csv",
+        )
+    assert "Saved phase frames" not in status
+    assert "foot corrections were not" in status
+    assert session.dirty is True
+    assert feet.dirty is True
+    assert quit_mode == "confirm_quit"
+    assert not (tmp_path / "foot_corrections.csv").exists()
+
+
+def test_failed_foot_write_can_be_retried_and_reloaded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.annotations.annotate import _hud, _unsaved
+    from app.annotations.foot_corrections import FootCorrectionError, FootReview, load_foot_corrections
+    from app.annotations.marker_sidecar import read_marker_positions
+    from app.annotations.phase_labels import read_phase_labels
+    import app.annotations.annotate as annotate_module
+
+    path = tmp_path / "clip.avi"
+    _write_clip(path, count=2)
+    labels = tmp_path / "phase_labels.csv"
+    markers = tmp_path / "marker_positions.csv"
+    foot_path = tmp_path / "foot_corrections.csv"
+    session = _session()
+    session.arm("bfc")
+    session.place(0, 0.2, 0.2)
+    feet = FootReview("c" * 64, "B01", "D01")
+    feet.place(0, 0.4, 0.5)
+    real_write = annotate_module.replace_delivery_foot_corrections
+    attempts = {"count": 0}
+
+    def fail_once(*args: object, **kwargs: object) -> object:
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise FootCorrectionError("Could not write foot_corrections.csv.")
+        return real_write(*args, **kwargs)
+
+    monkeypatch.setattr(annotate_module, "replace_delivery_foot_corrections", fail_once)
+    with FrameCursor(path) as cursor:
+        _mode, _jump, status, playing = _handle_key(
+            ord("y"),
+            "confirm_save",
+            "",
+            "",
+            False,
+            cursor,
+            session,
+            _PoseStub(),
+            labels,
+            markers,
+            feet=feet,
+            foot_path=foot_path,
+        )
+        hud = " ".join(
+            _hud(cursor, session, "pose off", "view", "", status, unsaved=_unsaved(session, feet))
+        )
+        quit_mode, _quit_jump, _quit_status, _quit_playing = _handle_key(
+            ord("q"),
+            "view",
+            "",
+            status,
+            playing,
+            cursor,
+            session,
+            _PoseStub(),
+            labels,
+            markers,
+            feet=feet,
+            foot_path=foot_path,
+        )
+        stored_labels = read_phase_labels(labels)
+        stored_markers = read_marker_positions(markers)
+        assert stored_labels[0].bfc_frame == 0
+        assert stored_markers[0].event == "bfc"
+        assert stored_markers[0].frame_index == 0
+        assert stored_markers[0].x_normalized == pytest.approx(0.2)
+        assert "unsaved" in hud
+        assert quit_mode == "confirm_quit"
+        assert not foot_path.exists()
+
+        retry_mode, _retry_jump, retry_status, _retry_playing = _handle_key(
+            ord("y"),
+            "confirm_save",
+            "",
+            "",
+            False,
+            cursor,
+            session,
+            _PoseStub(),
+            labels,
+            markers,
+            feet=feet,
+            foot_path=foot_path,
+        )
+    assert retry_mode == "view"
+    assert "Saved phase frames" in retry_status
+    assert session.dirty is False
+    assert feet.dirty is False
+    assert attempts["count"] == 2
+
+    reloaded = _session()
+    load_delivery(reloaded, labels, markers)
+    reloaded_feet, warnings = load_foot_corrections(foot_path, "c" * 64, "B01", "D01")
+    assert warnings == []
+    assert reloaded.bfc_frame == 0
+    assert reloaded.markers["bfc"].x_normalized == pytest.approx(0.2)
+    assert reloaded.markers["bfc"].y_normalized == pytest.approx(0.2)
+    assert len(reloaded_feet) == 1
+    assert reloaded_feet[0].landmark_name == "left_ankle"
+    assert reloaded_feet[0].frame_index == 0
+    assert reloaded_feet[0].x_normalized == pytest.approx(0.4)
+    assert reloaded_feet[0].y_normalized == pytest.approx(0.5)
+
+
 def test_failed_save_confirmation_is_not_reported_as_saved(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

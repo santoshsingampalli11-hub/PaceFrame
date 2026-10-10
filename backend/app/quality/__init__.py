@@ -11,11 +11,27 @@ from app.quality.diagnostics import (
     QualityDiagnosticsError,
     diagnose_pose_frames,
 )
+from app.quality.temporal import (
+    ContinuityNotes,
+    LandmarkDeviation,
+    LandmarkStep,
+    continuity_notes,
+    exploratory_large_steps,
+    landmark_deviations,
+    landmark_steps,
+)
 
 __all__ = [
+    "ContinuityNotes",
     "HipCentreMotion",
+    "LandmarkDeviation",
     "LandmarkSignalSummary",
+    "LandmarkStep",
     "QualityDiagnostics",
     "QualityDiagnosticsError",
+    "continuity_notes",
     "diagnose_pose_frames",
+    "exploratory_large_steps",
+    "landmark_deviations",
+    "landmark_steps",
 ]

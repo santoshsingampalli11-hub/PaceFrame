@@ -247,6 +247,18 @@ def test_normalized_hip_movement_is_independent_of_image_resolution(size: tuple[
     assert motion.mean_normalized_displacement == pytest.approx(0.10)
 
 
+def test_hip_centre_does_not_cross_a_skipped_frame_index() -> None:
+    frames = [
+        _hips(0, (0.40, 0.50), (0.60, 0.50)),
+        _hips(2, (0.50, 0.50), (0.70, 0.50)),
+    ]
+
+    motion = diagnose_pose_frames(frames).hip_centre_motion
+
+    assert motion.pair_count == 0
+    assert motion.mean_normalized_displacement is None
+
+
 def test_hip_centre_does_not_bridge_a_missing_pose() -> None:
     frames = [
         _pose_frame(0),

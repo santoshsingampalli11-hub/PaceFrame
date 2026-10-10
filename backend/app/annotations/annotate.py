@@ -20,8 +20,8 @@ Controls:
 - T: toggle the optional MediaPipe landmark overlay
 - Space: play or pause
 - L: load labels that were saved for a different video name, after you mean to
-- S, then Y: save phase frames and marker clicks, and record this video's file name
-- Q or Esc: quit; if there are unsaved edits, Y confirms discard
+- S, then Y: save phase frames, marker clicks, and manual foot corrections
+- Q or Esc: quit; if phase labels or foot corrections are unsaved, Y confirms discard
 
 Clicks in the black bars around the frame are ignored. The original video
 file is never written.
@@ -210,7 +210,7 @@ def _run_window(
     try:
         while True:
             if started and cv2.getWindowProperty(WINDOW, cv2.WND_PROP_VISIBLE) < 1:
-                if session.dirty or (feet is not None and feet.dirty):
+                if _unsaved(session, feet):
                     print("Window closed. Unsaved annotations were NOT written.")
                 break
             frame = cursor.current()
@@ -244,6 +244,7 @@ def _run_window(
                     jump_text,
                     status,
                     foot_note,
+                    unsaved=_unsaved(session, feet),
                 ),
                 foot_corrections=foot_layer,
                 show_raw_pose=pose.enabled and (feet is None or feet.show_raw),
@@ -398,16 +399,26 @@ def _handle_key(
             try:
                 save_delivery(session, labels_path, markers_path, video_filename or None)
                 if feet is not None and foot_path is not None:
-                    replace_delivery_foot_corrections(
-                        foot_path,
-                        feet.video_sha256,
-                        feet.bowler_id,
-                        feet.delivery_id,
-                        list(feet.items.values()),
-                    )
+                    try:
+                        replace_delivery_foot_corrections(
+                            foot_path,
+                            feet.video_sha256,
+                            feet.bowler_id,
+                            feet.delivery_id,
+                            list(feet.items.values()),
+                        )
+                    except (FootCorrectionError, OSError) as error:
+                        session.dirty = True
+                        return (
+                            "view",
+                            "",
+                            "Phase frames and marker clicks were written, but foot corrections "
+                            f"were not. This delivery is still unsaved. {error}",
+                            False,
+                        )
                     feet.dirty = False
                 status = "Saved phase frames, marker clicks, and any foot corrections."
-            except (AnnotationError, FootCorrectionError, OSError) as error:
+            except (AnnotationError, OSError) as error:
                 status = str(error)
             return "view", "", status, False
         if key in (ord("n"), ord("N"), 27):
@@ -422,7 +433,7 @@ def _handle_key(
         return mode, jump_text, status, False
 
     if key in (ord("q"), ord("Q"), 27):
-        if session.dirty:
+        if _unsaved(session, feet):
             return "confirm_quit", "", status, False
         return "quit", "", status, False
     if key in _RIGHT_KEYS:
@@ -693,6 +704,11 @@ def _create_image_landmarker() -> object:
         raise AnnotationError(f"Pose overlay could not start: {error}") from error
 
 
+def _unsaved(session: DeliveryAnnotation, feet: FootReview | None) -> bool:
+    """True when phase labels or manual foot corrections still need a confirmed save."""
+    return session.dirty or (feet is not None and feet.dirty)
+
+
 def _hud(
     cursor: FrameCursor,
     session: DeliveryAnnotation,
@@ -701,6 +717,7 @@ def _hud(
     jump_text: str,
     status: str,
     foot_note: str = "",
+    unsaved: bool = False,
 ) -> list[str]:
     timestamp = cursor.timestamp_seconds
     timestamp_text = "—" if timestamp is None else f"{timestamp:.3f}s encoded fps"
@@ -719,7 +736,7 @@ def _hud(
             f"REL {_frame_text(session.release_frame)}"
         ),
         f"armed {EVENT_LABELS.get(session.armed_event or '', 'none')}  {pose_message}  "
-        f"{'unsaved' if session.dirty else 'no unsaved edits'}",
+        f"{'unsaved' if unsaved or session.dirty else 'no unsaved edits'}",
         HELP,
     ]
     if foot_note:

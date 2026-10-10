@@ -16,7 +16,7 @@ This is a single-camera smartphone system, not laboratory motion capture. It doe
 | 3.5 Pose quality diagnostics (no accept/reject) | Complete |
 | Manual phase-label infrastructure | Complete |
 | Local real-video annotation window | Complete |
-| 4. Automatic bowling phase detection | **Not started** |
+| 4. Automatic bowling phase detection | Experimental BFC/FFC candidates only; not validated |
 | Biomechanical metrics | **Not started** |
 
 Project rules are in `.cursor/rules/`. Backend details are in `backend/README.md`. Dataset rules are in `fast_bowling_dataset/README.md`.

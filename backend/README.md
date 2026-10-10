@@ -283,6 +283,26 @@ The pipeline was run on one real phone clip of a bowling run-up. It was not stan
 
 There is no pass/fail field and no acceptance threshold.
 
+`landmark_steps` and `landmark_deviations` in `app.quality.temporal` describe normalized image movement of shoulders, hips, knees, ankles, heels, foot-index points, and wrists. A step is `hypot(dx, dy)` between frame indices that differ by 1, and only when both frames contain that landmark. A deviation is the distance from the middle point to the midpoint of its two neighbors. Fast real motion can be a large step with a small deviation. These numbers do not name the bowler and do not correct landmarks. `exploratory_large_steps(..., None)` flags nothing.
+
+`app.quality.scene_change.visual_changes` scores consecutive images by the mean absolute grayscale difference divided by 255. A high score is a possible visual discontinuity. Camera motion and lighting can raise it. Nothing is flagged unless the caller passes an exploratory limit. The score does not edit pose landmarks.
+
+## Contact candidates (`app/phases/`)
+
+`search_contact_candidates` looks for frames where an anatomical foot is briefly still in the image. It does not detect ball release, measure a force, or confirm that a shoe touched the ground.
+
+BFC is back-foot contact. FFC is front-foot contact. The caller must say which athlete side, `left` or `right`, is the back foot and which is the front foot. Those words are the athlete's sides, not the sides of the picture. If that mapping is omitted, the function abstains.
+
+`ContactHeuristicConfig.stable_displacement` is a provisional maximum normalized step. The default `None` abstains. A returned pair exists only when there is one BFC candidate, one later FFC candidate, and no listed visual break between them. Otherwise the candidates stay separate or the search abstains. `provisional_score` is always `None`.
+
+`compare_reference_frame` subtracts a manual reference frame from a candidate frame. A missing candidate is an abstention, not a zero error. A missing reference makes the comparison unavailable. Dividing by encoded FPS is an approximate time error, not a capture-clock measurement. Manual labels are not laboratory ground truth.
+
+```powershell
+.\.venv\Scripts\python.exe -c "from app.phases import ContactHeuristicConfig, search_contact_candidates; print(search_contact_candidates([]))"
+```
+
+From this `backend` directory. Do not treat a candidate from a broadcast clip as a verified contact.
+
 ```python
 from app.pose import estimate_video_poses
 from app.pose.mediapipe_estimator import MediaPipePoseEstimator
