@@ -287,6 +287,14 @@ There is no pass/fail field and no acceptance threshold.
 
 `app.quality.scene_change.visual_changes` scores consecutive images by the mean absolute grayscale difference divided by 255. A high score is a possible visual discontinuity. Camera motion and lighting can raise it. Nothing is flagged unless the caller passes an exploratory limit. The score does not edit pose landmarks.
 
+## Front-knee angle (`app/biomechanics/front_knee.py`)
+
+`front_knee_angle` returns the unsigned image-plane angle hip → knee → ankle for the anatomical side the caller names as the front leg (`left` or `right`). The vertex is the knee. Points are converted to pixels, then measured with `angle_abc_degrees`. The result is not a 3D joint angle, a technique grade, or an injury estimate.
+
+`front_knee_angles_at_manual_phases` reads FFC and Release from a manual `PhaseLabel`. It does not detect those events. If the exact frame is missing, a neighbor is not used. A coordinate outside 0..1 is not clamped; the result stays available and names that point in `warnings`. A missing visibility or presence score also leaves the angle available and sets `review_status` to `review_required`. `no_structural_warning` only means those descriptive checks were clear. It is not anatomical accuracy. Visibility is not a cutoff. Manual foot corrections are not substituted for the raw landmarks.
+
+`compare_front_knee_angle` subtracts a manual reference angle from that raw measurement. The caller must pass the bowler and delivery ids. Those ids are checked against the reference only. The function does not look up which video produced the pose, so a dataset workflow must attach the measurement to a verified delivery before treating the error as a dataset result. Bowler, delivery, phase, frame, and front leg must all match before an error is calculated. Signed error is automatic minus reference. Missing angles stay missing. FFC and Release error means are separate. If the same bowler, delivery, phase, frame, and front leg appear on more than one summary row, every copy is reported in `duplicate_identity_rows` and left out of the means. Conflicting angles are not averaged, and a repeated row is not counted twice. A manual reference is not laboratory ground truth. `no_structural_warning` is not anatomical accuracy.
+
 ## Contact candidates (`app/phases/`)
 
 `search_contact_candidates` looks for frames where an anatomical foot is briefly still in the image. It does not detect ball release, measure a force, or confirm that a shoe touched the ground.

@@ -17,7 +17,7 @@ This is a single-camera smartphone system, not laboratory motion capture. It doe
 | Manual phase-label infrastructure | Complete |
 | Local real-video annotation window | Complete |
 | 4. Automatic bowling phase detection | Experimental BFC/FFC candidates only; not validated |
-| Biomechanical metrics | **Not started** |
+| Biomechanical metrics | 2D front-knee angle at manual FFC and Release, compared with a manual reference angle; not a 3D joint angle |
 
 Project rules are in `.cursor/rules/`. Backend details are in `backend/README.md`. Dataset rules are in `fast_bowling_dataset/README.md`.
 
