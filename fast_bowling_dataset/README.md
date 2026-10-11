@@ -6,6 +6,8 @@ This folder holds **templates and rules** for the future V1 dataset. It does not
 
 Do not put real names in filenames. Use anonymous IDs: bowlers `B01`, `B02`, … and deliveries `D01`, `D02`, …
 
+The recording setup for original side-on videos is in `RECORDING_PROTOCOL.md`. Inspect each new file with `python -m app.video.inspect` from the `backend` directory before treating it as a candidate recording. That report does not accept the video for analysis.
+
 ## Layout
 
 ```text

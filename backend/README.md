@@ -145,6 +145,60 @@ No placeholder values are returned: if a video cannot be described reliably, the
 - **Truncated videos.** If decoding stops partway through a file, iteration ends at the last good frame; this looks the same as reaching the end of the video.
 - **No quality checks.** Resolution, frame rate, camera angle, lighting, and similar suitability checks are not implemented.
 
+### Read-only inspection
+
+`python -m app.video.inspect` prints header metadata and counts the frames that actually decode. It does not write the file, run pose, or decide that a recording is suitable.
+
+From the `backend` directory:
+
+```powershell
+.\.venv\Scripts\python.exe -m app.video.inspect path\to\delivery.mp4
+```
+
+The report looks like this. `unavailable` means that value was not obtained. It is not filled in.
+
+```text
+filename: delivery.mp4
+width: 1920
+height: 1080
+orientation: landscape
+encoded_fps: 60.0
+reported_frame_count: 240
+decoded_frame_count: 240
+estimated_duration_seconds: 4.0
+first_frame_decoded: yes
+final_portion_decoded: yes
+warnings:
+- Encoded FPS is the rate stored in the container, not a measured capture clock.
+- Width, height, and encoded FPS do not show that this video is suitable for biomechanical analysis.
+- Estimated duration is the header frame count divided by encoded FPS. It is not a measured recording length.
+error: unavailable
+```
+
+`encoded_fps` is the container rate. It is not proof that the phone captured every frame at that rate. `reported_frame_count` comes from the header. `decoded_frame_count` is how many frames OpenCV returned. `decode_end_status` is `counts_agree` when those counts match, `header_count_disagreement` when they do not, and `premature_decode_error` when decoding raises before the read ends. A count disagreement does not show that the final portion of the file failed to decode, so `final_portion_decoded` is `undetermined` in that case. It is `yes` only when the counts agree, and `no` only after a decode error.
+
+Clips in `fast_bowling_dataset/raw_videos/stress_tests/` are engineering footage. They are not the scientific dataset. For an original recording, follow `fast_bowling_dataset/RECORDING_PROTOCOL.md`, copy the unedited file to a local folder that is not committed, run the command above, and read the warnings before any annotation. A report with `error: unavailable` only means the file could be opened and described.
+
+### Pilot pose review
+
+`python -m app.quality.pilot_review` inspects one local video, runs the existing MediaPipe video-mode estimator, and writes a text summary from the existing pose-quality and temporal diagnostics. It does not grade the recording or change landmarks.
+
+The model file from the setup section is required: `models\pose_landmarker_full.task`.
+
+From the `backend` directory:
+
+```powershell
+.\.venv\Scripts\python.exe -m app.quality.pilot_review --video path\to\delivery.mp4 --output debug_output\pilot_review --frame 10 --frame 40
+```
+
+`--output` is a directory. The report is `report.txt` in that directory. Each `--frame` value is a zero-based decoded index. A valid index also writes `frame_<index>.png`, the original frame with the raw pose drawn on a copy. The image keeps the video's width and height. Points are not moved onto the body, and manual foot corrections are not applied. `debug_output/` is gitignored.
+
+The report includes filename, width, height, orientation, encoded FPS, header frame count, decoded frame count, header duration, pose-frame count and percent, missing-pose count and longest run, per-landmark frame counts and mean model scores, the largest normalized image step of each tracked landmark, and a three-frame deviation count. Normalized steps use `hypot(dx, dy)` on landmark `x` and `y`. They are not metres. Visibility is not accuracy. Nothing in the report is a pass or fail.
+
+The file is read more than once. Full frames are not stored. A long video may take several minutes, and frames are not dropped to save time.
+
+For Monday's first standardized recording: follow `fast_bowling_dataset/RECORDING_PROTOCOL.md`, run `app.video.inspect` on the unedited file, then run this command on a few frames you choose after watching the video. Read the caveats before any annotation. The report does not show that the pose is the bowler or that a landmark is on the body.
+
 ## Pose module (`app/pose/`)
 
 ### What it does
