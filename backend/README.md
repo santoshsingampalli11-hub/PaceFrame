@@ -199,6 +199,33 @@ The file is read more than once. Full frames are not stored. A long video may ta
 
 For Monday's first standardized recording: follow `fast_bowling_dataset/RECORDING_PROTOCOL.md`, run `app.video.inspect` on the unedited file, then run this command on a few frames you choose after watching the video. Read the caveats before any annotation. The report does not show that the pose is the bowler or that a landmark is on the body.
 
+### Pilot session manifest
+
+A session manifest ties an anonymous bowler id and delivery id to the SHA-256 of one original video. The hash is `file_sha256` from the foot-correction module. The filename is stored as well, but a matching name is not identity. `camera_side_on_confirmed` and `full_body_visibility_confirmed` are false until a person reviews the recording. `front_leg` stays empty unless `--front-leg` is passed. Creating a manifest does not confirm the camera view or the front leg.
+
+From the `backend` directory:
+
+```powershell
+.\.venv\Scripts\python.exe -m app.pilot.session_manifest create --video path\to\delivery.mp4 --bowler B01 --delivery D01 --output debug_output\pilot_sessions\B01_D01.json
+.\.venv\Scripts\python.exe -m app.pilot.session_manifest verify --manifest debug_output\pilot_sessions\B01_D01.json --video path\to\delivery.mp4
+```
+
+An existing output file is not overwritten. Verification recomputes the hash and fails if the bytes differ. A verified hash means the file bytes match. It does not mean the video is suitable, that the tracked person is the bowler, or that a measurement is accurate.
+
+### Manual-phase front-knee measurement
+
+This command checks the session manifest against the video bytes, then measures the existing 2D front-knee angle at the manual FFC and Release frames. It does not detect those events and it does not apply foot corrections.
+
+The phase-label file must contain one row for the manifest's bowler and delivery. The filename sidecar beside that CSV must name the same video file. A matching filename is not a hash, so the command also requires `--confirm-label-link` after you have checked that link yourself. The manifest must already contain `--front-leg left` or `--front-leg right`. Side-on view and full-body visibility stay unconfirmed unless those manifest flags are true, and a true flag is not scientific approval.
+
+From the `backend` directory:
+
+```powershell
+.\.venv\Scripts\python.exe -m app.pilot.manual_measurement --video path\to\delivery.mp4 --manifest debug_output\pilot_sessions\B01_D01.json --labels path\to\phase_labels.csv --output debug_output\pilot_sessions\B01_D01_measurement.json --confirm-label-link
+```
+
+The JSON report includes the verified SHA-256, the filename-only annotation provenance, both confirmation flags, the FFC and Release frame indexes, and each angle or null when the pose is unavailable. An unavailable angle is not stored as zero. No manual reference angle and no accuracy statistic are written. If the hash, the front leg, or the label link fails, no report file is created. An existing report is not overwritten. The model file `models\pose_landmarker_full.task` is required when you do not supply another estimator.
+
 ## Pose module (`app/pose/`)
 
 ### What it does
