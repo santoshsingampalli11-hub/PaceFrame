@@ -1,6 +1,7 @@
 # Direct dependencies.
 fastapi==0.141.1
 uvicorn==0.54.0
+python-multipart==0.0.20
 # mediapipe depends on opencv-contrib-python; installing opencv-python as well
 # would put two conflicting copies of cv2 in the environment.
 opencv-contrib-python==5.0.0.93

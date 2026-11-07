@@ -18,6 +18,8 @@ htmlcov/
 *.mkv
 *.task
 debug_output/
+local_sessions/
+backend/local_sessions/
 fast_bowling_dataset/raw_videos/**
 !fast_bowling_dataset/raw_videos/.gitkeep
 !fast_bowling_dataset/raw_videos/stress_tests/

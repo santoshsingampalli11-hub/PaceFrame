@@ -15,7 +15,7 @@ import json
 import math
 import os
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -141,6 +141,28 @@ def create_session_manifest(
     return manifest
 
 
+def set_manifest_front_leg(manifest_path: str | Path, front_leg: str) -> PilotSessionManifest:
+    """Record anatomical front_leg on an existing manifest.
+
+    Hash, video metadata, identities, and camera-confirmation flags are not
+    changed. A different already-recorded side is not overwritten.
+    """
+    path = Path(manifest_path)
+    manifest = load_session_manifest(path)
+    leg = _optional_leg(front_leg)
+    if leg is None:
+        raise SessionManifestError("front_leg must be 'left' or 'right'.")
+    if manifest.front_leg is None:
+        updated = replace(manifest, front_leg=leg)
+        _replace_manifest(path, updated)
+        return updated
+    if manifest.front_leg == leg:
+        return manifest
+    raise SessionManifestError(
+        f"The manifest already has front_leg={manifest.front_leg!r}. It was not changed."
+    )
+
+
 def verify_session_manifest(manifest_path: str | Path, video: str | Path) -> ManifestVerification:
     """Re-hash ``video`` and compare it with the manifest. Neither file is modified."""
     path = Path(manifest_path)
@@ -252,6 +274,28 @@ def _write_manifest(path: Path, manifest: PilotSessionManifest) -> None:
             os.fsync(output.fileno())
         if path.exists():
             raise SessionManifestError(f"{path.name} already exists. It was not overwritten.")
+        os.replace(temp_path, path)
+        temp_path = None
+    except OSError as error:
+        raise SessionManifestError(f"Could not write {path.name}.") from error
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+
+
+def _replace_manifest(path: Path, manifest: PilotSessionManifest) -> None:
+    """Replace an existing manifest file. Hash and unrelated fields are the caller's responsibility."""
+    if not path.is_file():
+        raise SessionManifestError(f"Manifest file not found: {path.name}")
+    temp_path: Path | None = None
+    try:
+        handle, temp_name = tempfile.mkstemp(prefix=f"{path.name}.", suffix=".tmp", dir=path.parent)
+        temp_path = Path(temp_name)
+        with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as output:
+            json.dump(manifest.to_json(), output, indent=2, sort_keys=True)
+            output.write("\n")
+            output.flush()
+            os.fsync(output.fileno())
         os.replace(temp_path, path)
         temp_path = None
     except OSError as error:

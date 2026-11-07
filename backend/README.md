@@ -2,11 +2,13 @@
 
 Python backend for the Fast Bowling V1 prototype. It currently has:
 
-- a FastAPI app that serves identification and health checks,
+- a FastAPI app that serves identification, health checks, and delivery-session video upload,
 - a video module that opens local video files with OpenCV and reads their metadata and frames, and
 - a pose module that runs MediaPipe Pose on those frames and returns body landmarks, and
 - a quality module that summarises pose coverage and tracking diagnostics from those landmarks, and
 - an annotation module for manual BFC / FFC / release reference labels.
+
+Upload creates a local session and a SHA-256 manifest. It does not run pose estimation or knee measurement, and a decoded file is not a scientifically suitable recording.
 
 **Quality diagnostics do not accept or reject videos.** Manual phase labels are annotator-selected frame indices, not laboratory ground truth. Automatic BFC / FFC / release detection is not implemented. There are no cricket-specific biomechanical metrics.
 
@@ -44,15 +46,128 @@ This is version 1 of the "full" Pose Landmarker model (9,398,198 bytes, SHA-256 
 From this `backend` directory, with the virtual environment active:
 
 ```powershell
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --workers 1
 ```
 
 The API listens on `http://127.0.0.1:8000`.
 
 - `GET /` identifies the API.
 - `GET /health` reports that the process is running.
+- `POST /api/sessions` stores one uploaded video and writes a session manifest.
+- `GET /api/sessions/{session_id}` returns that session summary.
+- `POST /api/sessions/{session_id}/pose-review` starts a local pose-review job (`202`).
+- `GET /api/sessions/{session_id}/pose-review` polls job status.
+- `GET /api/sessions/{session_id}/pose-review/report` returns the completed diagnostic report.
+- `PUT /api/sessions/{session_id}/labels` stores manual BFC/FFC/Release frames.
+- `GET /api/sessions/{session_id}/labels` returns those labels.
+- `POST /api/sessions/{session_id}/measure` starts a 2D front-knee job (`202`).
+- `GET /api/sessions/{session_id}/measure` polls measurement status.
+- `GET /api/sessions/{session_id}/report` returns the completed measurement JSON.
 
 Interactive docs are available at `http://127.0.0.1:8000/docs`.
+
+CORS is allowed only for local Vite origins `http://localhost:5173` and `http://127.0.0.1:5173`. There is no wildcard production CORS. Uploaded videos are not served as static files.
+
+### Delivery-session upload
+
+`POST /api/sessions` accepts `multipart/form-data`:
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `video` | yes | Original clip bytes. The file is stored without transcoding. |
+| `bowler_id` | yes | Anonymous id such as `B01`. Names are rejected. |
+| `delivery_id` | yes | Anonymous id such as `D01`. |
+| `front_leg` | no | `left`, `right`, or omitted. The API does not infer the anatomical side. |
+
+Allowed filename extensions are `.mp4`, `.mov`, and `.avi`. Archive types such as `.zip` are rejected with HTTP 415. Content-Type is not trusted: a `.zip` named as `video/mp4` is still rejected, and a valid `.avi` sent as `application/zip` is still inspected as video.
+
+The default maximum **file** size is 80 MiB (`83886080` bytes). Set `FAST_BOWLING_MAX_UPLOAD_BYTES` to change it. The limit is applied while the body is received, not from Content-Length alone. Oversized bodies return HTTP 413.
+
+Sessions are stored under `backend/local_sessions/`, or `FAST_BOWLING_SESSION_ROOT` when that environment variable is set. That directory is gitignored. Each session is an opaque 32-character hex id with its own folder. The stored video name is server-controlled (`video.mp4`, `video.mov`, or `video.avi`). Absolute filesystem paths are not returned. Incomplete or failed creates are deleted; existing session files are not overwritten.
+
+A successful response includes `session_id`, anonymous ids, the **server-controlled** stored file name (`video.mp4`, `video.mov`, or `video.avi`), SHA-256, width, height, encoded FPS, decoded frame count, orientation, `status` (`created`), unconfirmed camera/full-body flags, optional `front_leg`, and a scientific caveat. The client upload name is used only to choose an allowed extension. It is not stored and not returned, because a phone-generated name can identify a person. Decoding and a matching hash do not mean the clip is side-on, complete, or suitable for measurement.
+
+```powershell
+curl.exe -X POST http://127.0.0.1:8000/api/sessions -F "video=@C:\path\to\delivery.mp4" -F "bowler_id=B01" -F "delivery_id=D01" -F "front_leg=left"
+curl.exe http://127.0.0.1:8000/api/sessions/SESSION_ID
+```
+
+Common errors:
+
+| Status | Typical cause |
+| --- | --- |
+| 400 | Invalid anonymous id, missing file name, or the file did not decode |
+| 404 | Unknown session id |
+| 409 | Session id could not be allocated uniquely |
+| 413 | Upload larger than the configured limit |
+| 415 | Extension or container is not an allowed video type |
+| 422 | Multipart field missing, such as no `video` file |
+
+Do not point this endpoint at `fast_bowling_dataset/`. Do not commit uploaded videos.
+
+### Pose-review jobs
+
+`POST /api/sessions/{session_id}/pose-review` starts the existing `run_pilot_review` pipeline on the stored video after the SHA-256 matches the session manifest. A matching hash is not scientific suitability. The handler returns **202 Accepted** with `job_id`, `status`, and `status_path`. It does not wait for MediaPipe to finish.
+
+JSON body (optional):
+
+```json
+{"review_frames": [0, 2]}
+```
+
+`review_frames` are exact zero-based decoded indexes, at most 8, with no duplicates, no booleans, and no negative values. Repeated indexes are rejected. Overlay PNGs may be written inside the session folder by the existing review command; HTTP retrieval of those images is deferred to a later step.
+
+Poll `GET /api/sessions/{session_id}/pose-review` until `status` is `completed` or `failed`. Then `GET /api/sessions/{session_id}/pose-review/report` returns the existing text report plus counts and `overlay_frames`. If the job is still queued or running, that report URL returns **409**. A failed job also returns **409** with a short error; it does not invent a successful report.
+
+`GET /api/sessions/{session_id}/pose-review/frames/{index}` returns one PNG that the review already wrote for a requested index, and only after the job is completed. Other indexes, another session, and the original video are not served. This is not a full-video frame scrubber.
+
+### Original decoded frames
+
+`GET /api/sessions/{session_id}/video/frames/{index}` returns one JPEG of the exact zero-based decoded frame. Index 0 is the first frame from the existing sequential reader. The endpoint does not seek, does not run MediaPipe, and does not send the original video file. An index past the decoded count is rejected. One decode runs at a time in this process; a second decode returns HTTP 503. A small memory cache keeps a few JPEGs for the verified file identity. A matching hash is checked when the file size or modification time changes, not on every cached hit. Encoded FPS is not a capture clock.
+
+```powershell
+curl.exe -X POST http://127.0.0.1:8000/api/sessions/SESSION_ID/pose-review -H "Content-Type: application/json" -d "{}"
+curl.exe http://127.0.0.1:8000/api/sessions/SESSION_ID/pose-review
+curl.exe http://127.0.0.1:8000/api/sessions/SESSION_ID/pose-review/report
+```
+
+Only **one** pose-review job runs in this process by default (`FAST_BOWLING_MAX_POSE_JOBS`). A second session while the first is running receives **503**. A second start for the same session while one is queued or running receives **409**. This is an in-memory worker plus a `pose_review/job.json` file in the session directory. Use a **single Uvicorn worker**. Restarting the process marks queued or running jobs as failed (`Pose review was interrupted when the server stopped`) and removes half-written reports. Multiple workers, Celery, and Redis are not supported. Processing can be CPU-intensive. The MediaPipe model file `models/pose_landmarker_full.task` is required for a real review; the test suite uses a fake estimator.
+
+A completed pose review is a diagnostic summary of detections. It is not a joint-angle measurement, not 3D biomechanics, and not proof that the clip is side-on or suitable.
+
+### Manual labels and 2D front-knee measurement
+
+The existing `PhaseLabel` type allows any subset of BFC, FFC, and Release. This API **requires FFC and Release** because those are the frames `measure_manual_front_knee` uses. **BFC may be omitted.** Frames are exact zero-based decoded indexes. They are not detected automatically. Chronological order is the existing rule: BFC < FFC < Release for whichever pair is present.
+
+`PUT /api/sessions/{session_id}/labels` body:
+
+```json
+{
+  "bfc_frame": 0,
+  "ffc_frame": 12,
+  "release_frame": 18,
+  "front_leg": "left",
+  "confirm_front_leg": true,
+  "confirm_label_link": true,
+  "labeler": "SS",
+  "notes": "",
+  "replace_existing": false
+}
+```
+
+`confirm_front_leg` and `confirm_label_link` are separate human decisions. Front leg is stored on the existing session manifest via a field-only update that does not change SHA-256, camera flags, or identities. A different already-recorded side is rejected. `confirm_label_link` records that you checked the filename sidecar; that sidecar is still not a hash. Existing labels are not overwritten unless `replace_existing` is true.
+
+CSV and sidecar writes are sequential, not one database transaction. If the sidecar write failed on a first save, the CSV is removed. On replace, a sidecar failure can leave the new CSV without a matching sidecar; GET then reports labels as not usable.
+
+```powershell
+curl.exe -X PUT http://127.0.0.1:8000/api/sessions/SESSION_ID/labels -H "Content-Type: application/json" -d "{\"ffc_frame\":12,\"release_frame\":18,\"front_leg\":\"left\",\"confirm_front_leg\":true,\"confirm_label_link\":true,\"labeler\":\"SS\"}"
+curl.exe http://127.0.0.1:8000/api/sessions/SESSION_ID/labels
+curl.exe -X POST http://127.0.0.1:8000/api/sessions/SESSION_ID/measure -H "Content-Type: application/json" -d "{\"confirm_label_link\":true}"
+curl.exe http://127.0.0.1:8000/api/sessions/SESSION_ID/measure
+curl.exe http://127.0.0.1:8000/api/sessions/SESSION_ID/report
+```
+
+Measurement calls existing `measure_manual_front_knee` on a background worker (same local cap as pose-review, default 1, `FAST_BOWLING_MAX_POSE_JOBS`). It does not wait on the HTTP request. Confirm the label-filename link again at measure time. Foot corrections and contact heuristics are not applied. An existing measurement report is not overwritten. Restart marks queued/running measurement jobs failed. Unavailable angles stay `null`, not 0. Visibility is not accuracy. Side-on and full-body flags stay unconfirmed unless a person already set them, and this API does not set them.
 
 ## Run tests
 
@@ -75,12 +190,12 @@ It is a **REAL-WORLD STRESS TEST**: not scientific validation, not training data
 
 ## Security notes (local prototype)
 
-- The API does not accept file uploads or paths.
+- `POST /api/sessions` accepts a video upload. It does not accept caller-chosen filesystem paths, and it does not keep or return the original client filename.
 - Unhandled API errors return `{"detail":"Internal server error"}` and do not include stack traces or filesystem paths.
 - Video and pose errors use the file name, not the full path.
 - The debug tool refuses to overwrite its input video.
 - No API keys or secrets are stored in the repository.
-- Personal videos, model files (`*.task`), `debug_output/`, and `fast_bowling_dataset/raw_videos/` are gitignored.
+- Personal videos, model files (`*.task`), `debug_output/`, `backend/local_sessions/`, and `fast_bowling_dataset/raw_videos/` are gitignored.
 
 Do not commit personal bowling videos.
 
@@ -471,10 +586,12 @@ Known benign pytest warning: Starlette reports that `TestClient` prefers a packa
 - Pose/video accept/reject thresholds (diagnostics exist; gates do not)
 - Phase 4: automatic BFC / FFC / release detection
 - Cricket-specific biomechanical measurements (knee angle interpretation, stride, release height, scoring)
-- Video upload API
+- HTTP retrieval of pose-review overlay PNGs (written on disk only)
+- Research interpretation, technique scores, and PDF export
+- Video upload beyond a local unverified delivery session
 - Region-of-interest cropping or athlete selection
 - Measurement validation
-- Database, authentication, reports, and deployment
+- Database, authentication, and production deployment
 - Frontend
 - 3D biomechanics, forces, injury prediction, or medical claims
 

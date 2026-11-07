@@ -13,6 +13,7 @@ from app.pilot.session_manifest import (
     create_session_manifest,
     load_session_manifest,
     main,
+    set_manifest_front_leg,
     verify_session_manifest,
 )
 
@@ -198,6 +199,26 @@ def test_failed_replace_leaves_no_manifest(monkeypatch: pytest.MonkeyPatch, tmp_
     assert not output.exists()
     assert list(output.parent.glob("*.tmp")) == []
     assert video.read_bytes()
+
+
+def test_front_leg_can_be_set_once_and_not_silently_changed(tmp_path: Path) -> None:
+    video = tmp_path / "delivery.avi"
+    output = tmp_path / "B01_D01.json"
+    _write_clip(video)
+    create_session_manifest(video, "B01", "D01", output)
+    before = json.loads(output.read_text(encoding="utf-8"))
+    updated = set_manifest_front_leg(output, "left")
+    after = load_session_manifest(output)
+    assert updated.front_leg == "left"
+    assert after.front_leg == "left"
+    assert after.video_sha256 == before["video_sha256"]
+    assert after.camera_side_on_confirmed is False
+    assert after.full_body_visibility_confirmed is False
+    again = set_manifest_front_leg(output, "left")
+    assert again.front_leg == "left"
+    with pytest.raises(SessionManifestError, match="already has front_leg"):
+        set_manifest_front_leg(output, "right")
+    assert load_session_manifest(output).front_leg == "left"
 
 
 def test_cli_create_and_verify(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

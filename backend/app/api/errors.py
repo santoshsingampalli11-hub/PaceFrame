@@ -1,15 +1,25 @@
 """Safe HTTP error responses that do not leak internals."""
 
 import logging
+import re
 
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger("fast_bowling.api")
 
+_PATH_HINT = re.compile(r"[A-Za-z]:\\|\\\\|/Users/|/home/|\\Users\\")
+
 
 def error_payload(message: str) -> dict[str, str]:
     return {"detail": message}
+
+
+def public_detail(message: str, fallback: str) -> str:
+    """Return ``message`` unless it looks like a filesystem path."""
+    if _PATH_HINT.search(message) or "\\" in message:
+        return fallback
+    return message
 
 
 def http_exception_handler(_request: Request, exc: HTTPException) -> JSONResponse:
