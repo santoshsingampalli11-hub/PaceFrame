@@ -79,9 +79,13 @@ export const OriginalVideoFrameViewer = forwardRef<OriginalFrameViewerHandle, Or
       setSlider(next);
       setJumpText(String(next));
       setJumpError(null);
+      if (shown?.sessionId !== sessionId || shown.index !== next) {
+        setLoading(true);
+        onDisplayedFrame?.(null);
+      }
       setRequested(next);
     },
-    [lastIndex],
+    [lastIndex, onDisplayedFrame, sessionId, shown],
   );
 
   useImperativeHandle(ref, () => ({ goTo }), [goTo]);
@@ -147,7 +151,9 @@ export const OriginalVideoFrameViewer = forwardRef<OriginalFrameViewerHandle, Or
         ? `Loading frame ${requested}…`
         : visible && visible.index === requested
           ? `Showing frame ${visible.index}`
-          : "No frame is shown.";
+          : visible
+            ? `Showing frame ${visible.index} — requested frame ${requested} is not displayed`
+            : "No frame is shown.";
 
   return (
     <section
@@ -168,9 +174,13 @@ export const OriginalVideoFrameViewer = forwardRef<OriginalFrameViewerHandle, Or
       </p>
       {loadError ? (
         <p role="alert">
-          {visible
-            ? `Frame ${requested} did not load. Still showing frame ${visible.index}. ${loadError}`
-            : loadError}{" "}
+          {loadError.toLowerCase().includes("capacity")
+            ? visible
+              ? `The frame decoder is busy. Still showing frame ${visible.index}. That frame is not used for marking until the requested frame loads.`
+              : "The frame decoder is busy. No frame is available for marking."
+            : visible
+              ? `Frame ${requested} did not load. Still showing frame ${visible.index}. ${loadError}`
+              : loadError}{" "}
           <button type="button" onClick={() => setAttempt((current) => current + 1)}>
             Retry frame
           </button>

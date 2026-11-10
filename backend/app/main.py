@@ -17,6 +17,7 @@ from app.api.routes import router
 from app.api.session_routes import router as session_router
 from app.api.upload_limit import UploadByteLimitMiddleware
 from app.api.video_frame_routes import router as video_frame_router
+from app.api.video_stream_routes import router as video_stream_router
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -41,7 +42,8 @@ app = FastAPI(
         "Backend API for the Fast Bowling V1 prototype. "
         "Identification, health checks, delivery-session video upload, local "
         "pose-review jobs, manual event labels, and 2D front-knee measurement "
-        "jobs are available. A decoded upload or a detected pose is not a "
+        "jobs are available. The original upload can be streamed for browser playback. "
+        "A decoded upload or a detected pose is not a "
         "scientifically suitable recording. Run a single Uvicorn worker."
     ),
 )
@@ -54,11 +56,13 @@ app.include_router(pose_review_router, prefix="/api")
 app.include_router(label_router, prefix="/api")
 app.include_router(measurement_router, prefix="/api")
 app.include_router(video_frame_router, prefix="/api")
+app.include_router(video_stream_router, prefix="/api")
 app.add_middleware(UploadByteLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(LOCAL_VITE_ORIGINS),
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "OPTIONS"],
-    allow_headers=["Accept", "Content-Type"],
+    allow_headers=["Accept", "Content-Type", "Range"],
+    expose_headers=["Accept-Ranges", "Content-Range", "Content-Length"],
 )

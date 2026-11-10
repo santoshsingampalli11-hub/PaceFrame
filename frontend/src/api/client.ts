@@ -140,6 +140,10 @@ export function poseReviewFrameUrl(sessionId: string, frameIndex: number): strin
   return `${API_BASE_URL}/api/sessions/${encodeURIComponent(sessionId)}/pose-review/frames/${frameIndex}`;
 }
 
+export function originalVideoUrl(sessionId: string): string {
+  return `${API_BASE_URL}/api/sessions/${encodeURIComponent(sessionId)}/video`;
+}
+
 async function request(path: string, init?: RequestInit): Promise<Response> {
   let response: Response;
   try {

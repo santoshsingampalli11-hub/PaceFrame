@@ -149,6 +149,33 @@ describe("manual event annotation", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Mark FFC" })).toBeEnabled());
   });
 
+  it("uses paused playback time only as an approximate starting frame", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const path = String(url);
+        if (init?.method === "PUT" || init?.method === "POST") throw new Error("playback must not save labels");
+        if (path.endsWith(`/api/sessions/${sessionId}`)) return jsonResponse(session);
+        if (path.endsWith("/labels")) return jsonResponse({ detail: "No labels were found." }, 404);
+        if (path.endsWith("/pose-review")) return jsonResponse({ detail: "No pose review job was found." }, 404);
+        if (path.includes("/video/frames/")) return jpeg();
+        return jsonResponse({ detail: "missing" }, 404);
+      }),
+    );
+    const user = userEvent.setup();
+    renderSession();
+    expect(await screen.findByRole("img", { name: "Original decoded frame 0" })).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Original uploaded video")).toHaveLength(1);
+    expect(screen.getAllByRole("region", { name: "Original video frames" })).toHaveLength(1);
+    const video = screen.getByLabelText("Original uploaded video") as HTMLVideoElement;
+    Object.defineProperty(video, "duration", { configurable: true, value: 4 });
+    Object.defineProperty(video, "currentTime", { configurable: true, writable: true, value: 0.24 });
+    await user.click(screen.getByRole("button", { name: "Inspect near paused time" }));
+    expect(screen.getByText(/APPROXIMATE starting frame 2/)).toBeInTheDocument();
+    expect(screen.getByText(/not the event frame/)).toBeInTheDocument();
+    expect(await screen.findByRole("img", { name: "Original decoded frame 2" })).toBeInTheDocument();
+  });
+
   it("saves BFC, FFC and Release from the displayed frames", async () => {
     const puts: string[] = [];
     vi.stubGlobal(

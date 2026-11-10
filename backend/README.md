@@ -125,6 +125,8 @@ Poll `GET /api/sessions/{session_id}/pose-review` until `status` is `completed` 
 
 `GET /api/sessions/{session_id}/video/frames/{index}` returns one JPEG of the exact zero-based decoded frame. Index 0 is the first frame from the existing sequential reader. The endpoint does not seek, does not run MediaPipe, and does not send the original video file. An index past the decoded count is rejected. One decode runs at a time in this process; a second decode returns HTTP 503. A small memory cache keeps a few JPEGs for the verified file identity. A matching hash is checked when the file size or modification time changes, not on every cached hit. Encoded FPS is not a capture clock.
 
+`GET /api/sessions/{session_id}/video` streams that same stored upload. `HEAD` returns the length without a body. One `Range: bytes=` interval is supported (`START-END`, `START-`, or `-SUFFIX`) and answers `206` with `Content-Range`. A range outside the file answers `416` with `Content-Range: bytes */LENGTH`. Multiple ranges are not supported and also answer `416`. The body is read in 64 KiB chunks. The container type is `video/mp4`, `video/quicktime`, or `video/x-msvideo`. Nothing is transcoded. Whether a browser can play the file depends on the codec inside the container; MOV and AVI often will not play natively. There is no login on this local prototype. A matching hash is not scientific suitability.
+
 ```powershell
 curl.exe -X POST http://127.0.0.1:8000/api/sessions/SESSION_ID/pose-review -H "Content-Type: application/json" -d "{}"
 curl.exe http://127.0.0.1:8000/api/sessions/SESSION_ID/pose-review

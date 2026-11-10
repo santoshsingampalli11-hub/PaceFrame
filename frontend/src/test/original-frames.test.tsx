@@ -213,11 +213,11 @@ describe("original frame viewer", () => {
     expect(await screen.findByRole("img", { name: "Original decoded frame 0" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Next frame" }));
     expect(screen.getByRole("img", { name: "Original decoded frame 0" })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Showing frame 0 — loading frame 1");
+    expect(screen.getByText("Showing frame 0 — loading frame 1")).toBeInTheDocument();
     expect(screen.queryByRole("img", { name: "Original decoded frame 1" })).not.toBeInTheDocument();
     releaseNext(jpeg(8));
     expect(await screen.findByRole("img", { name: "Original decoded frame 1" })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Showing frame 1");
+    expect(screen.getByText("Showing frame 1")).toBeInTheDocument();
     expect(screen.queryByRole("img", { name: "Original decoded frame 0" })).not.toBeInTheDocument();
   });
 
@@ -249,5 +249,33 @@ describe("original frame viewer", () => {
     await user.click(screen.getByRole("button", { name: "Retry frame" }));
     expect(await screen.findByRole("img", { name: "Original decoded frame 1" })).toBeInTheDocument();
     expect(requested.filter((index) => index === "1").length).toBe(2);
+  });
+
+  it("keeps the last frame and offers retry when the decoder is busy", async () => {
+    let busy = true;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const path = String(url);
+        if (path.endsWith(`/api/sessions/${sessionId}`)) return jsonResponse(session);
+        if (path.endsWith("/pose-review")) return jsonResponse({ detail: "No pose review job was found." }, 404);
+        if (path.endsWith("/frames/0")) return jpeg(4);
+        if (path.endsWith("/frames/1") && busy) {
+          return jsonResponse({ detail: "Frame decoding capacity is full." }, 503);
+        }
+        if (path.endsWith("/frames/1")) return jpeg(8);
+        return jsonResponse({ detail: "missing" }, 404);
+      }),
+    );
+    const user = userEvent.setup();
+    renderSession();
+    await screen.findByRole("img", { name: "Original decoded frame 0" });
+    await user.click(screen.getByRole("button", { name: "Next frame" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("The frame decoder is busy");
+    expect(screen.getByRole("alert")).toHaveTextContent("not used for marking");
+    expect(screen.getByRole("img", { name: "Original decoded frame 0" })).toBeInTheDocument();
+    busy = false;
+    await user.click(screen.getByRole("button", { name: "Retry frame" }));
+    expect(await screen.findByRole("img", { name: "Original decoded frame 1" })).toBeInTheDocument();
   });
 });

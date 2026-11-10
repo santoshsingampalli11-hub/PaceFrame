@@ -36,8 +36,11 @@ Start the API from `backend` with one worker:
 - Starts and polls `POST` and `GET /api/sessions/{session_id}/pose-review`
 - Shows the completed diagnostic report and only the overlay PNGs the server exported
 - Shows any decoded original frame from `GET /api/sessions/{session_id}/video/frames/{index}`
+- Plays the stored upload from `GET /api/sessions/{session_id}/video` on Video & Pose Review
 
 Frame indexes are zero-based. Previous, next, jump, and the slider stay inside `0 .. decoded_frame_count - 1`. Arrow keys move one frame when the original-frame section is focused, and they do not fire while typing in the jump field. The image is shown only after the response for that exact index arrives. The original image has no pose overlay.
+
+The video player can play, pause, seek, replay, and run at 0.25x, 0.5x, or 1x. It does not write BFC, FFC, or Release. Those marks still come only from the decoded frame that is actually displayed. If the browser cannot play the container or codec, exact-frame review remains available and the upload is left unchanged.
 
 ## Manual events
 
