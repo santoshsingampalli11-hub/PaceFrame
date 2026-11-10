@@ -9,6 +9,7 @@ import {
 } from "../api/client";
 import type { PoseReviewReport, SessionLabels, SessionResponse, StoredMeasurement } from "../api/types";
 import { MeasurementExportButtons } from "./MeasurementExportButtons";
+import { ScientificLimitations } from "./LimitationSection";
 
 type ReportPanelProps = {
   session: SessionResponse;
@@ -129,16 +130,7 @@ export function ReportPanel({ session }: ReportPanelProps) {
           </dl>
         </section>
       </div>
-      {measurement ? (
-        <ul>
-          {measurement.warnings.map((warning) => (
-            <li key={warning}>{warning}</li>
-          ))}
-          {measurement.limitations.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      ) : null}
+      {measurement ? <ScientificLimitations measurement={measurement} /> : null}
       <MeasurementExportButtons
         sessionId={session.session_id}
         bowlerId={session.bowler_id}

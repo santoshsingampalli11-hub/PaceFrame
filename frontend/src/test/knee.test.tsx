@@ -187,7 +187,7 @@ describe("knee measurement", () => {
     expect(await screen.findByText("142.50°")).toBeInTheDocument();
     expect(screen.getByText("Unavailable")).toBeInTheDocument();
     expect(screen.getByText(/hip left_hip: present/)).toBeInTheDocument();
-    expect(screen.getByText("Side-on camera view is unconfirmed.")).toBeInTheDocument();
+    expect(screen.getByText(/Side-on camera view is unconfirmed/)).toBeInTheDocument();
     expect(screen.queryByText("0°")).not.toBeInTheDocument();
     await userDownload();
     expect(URL.createObjectURL).toHaveBeenCalled();

@@ -29,8 +29,8 @@ export function MeasurementExportButtons({
   return (
     <>
       <p className="hint">
-        The CSV has one row for FFC and one row for Release. The row under the header states that angle_degrees is
-        measured in degrees. A blank angle is unavailable, not zero.
+        The CSV has a header and one row each for FFC and Release. Values in angle_degrees are decimal degrees.
+        A blank angle is unavailable, not zero. Download JSON keeps every stored warning unchanged.
       </p>
       <div className="export-actions">
         <button type="button" onClick={downloadCsv} disabled={!measurement}>

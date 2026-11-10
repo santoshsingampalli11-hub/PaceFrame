@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ApiError, getMeasurement, getMeasurementReport, getSessionLabels, startMeasurement } from "../api/client";
 import type { KneeAngleResult, MeasurementJobState, SessionLabels, SessionResponse, StoredMeasurement } from "../api/types";
 import { MeasurementExportButtons } from "./MeasurementExportButtons";
+import { ScientificLimitations } from "./LimitationSection";
 
 type KneeMeasurementPanelProps = {
   session: SessionResponse;
@@ -141,16 +142,7 @@ export function KneeMeasurementPanel({ session }: KneeMeasurementPanelProps) {
           <AngleCard title="Ball release" frame={result.release_frame} angle={result.release} />
         </div>
       ) : null}
-      {result ? (
-        <ul>
-          {(result.warnings ?? []).map((warning) => (
-            <li key={warning}>{warning}</li>
-          ))}
-          {(result.limitations ?? []).map((limitation) => (
-            <li key={limitation}>{limitation}</li>
-          ))}
-        </ul>
-      ) : null}
+      {result ? <ScientificLimitations measurement={result} /> : null}
       <MeasurementExportButtons
         sessionId={session.session_id}
         bowlerId={session.bowler_id}
@@ -197,9 +189,6 @@ function AngleCard({ title, frame, angle }: { title: string; frame: number | nul
           </li>
         ))}
       </ul>
-      {(angle.warnings ?? []).map((warning) => (
-        <p key={warning}>{warning}</p>
-      ))}
     </article>
   );
 }

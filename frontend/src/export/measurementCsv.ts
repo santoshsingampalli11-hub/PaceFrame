@@ -17,7 +17,7 @@ export const MEASUREMENT_CSV_COLUMNS = [
   "label_byte_identity_verified",
 ] as const;
 
-/** The second CSV row is this unit label under angle_degrees, not a delivery. */
+/** Values in angle_degrees are decimal degrees. Full stored precision is kept. */
 export const ANGLE_DEGREES_UNIT = "degrees";
 
 const PHASES = [
@@ -32,7 +32,7 @@ const FORMULA_START = /^[\t\r\n\uFEFF ]*[=+\-@]/;
  * angle_degrees is copied from the stored report. A missing angle stays blank.
  */
 export function measurementCsv(sessionId: string, report: Partial<StoredMeasurement> | null | undefined): string {
-  const rows = [MEASUREMENT_CSV_COLUMNS.join(","), unitRow(), ...PHASES.map((item) => phaseRow(sessionId, report, item.phase, item.key))];
+  const rows = [MEASUREMENT_CSV_COLUMNS.join(","), ...PHASES.map((item) => phaseRow(sessionId, report, item.phase, item.key))];
   return `\uFEFF${rows.join("\r\n")}\r\n`;
 }
 
@@ -40,11 +40,6 @@ export function measurementCsv(sessionId: string, report: Partial<StoredMeasurem
 export function measurementCsvFilename(sessionId: string): string {
   const anonymous = /^[0-9a-f]{32}$/i.test(sessionId) ? sessionId.toLowerCase() : "session";
   return `${anonymous}-front-knee.csv`;
-}
-
-function unitRow(): string {
-  const cells = MEASUREMENT_CSV_COLUMNS.map((column) => (column === "angle_degrees" ? ANGLE_DEGREES_UNIT : ""));
-  return cells.map((cell) => csvField(cell)).join(",");
 }
 
 function phaseRow(

@@ -82,18 +82,19 @@ function rowsOf(csv: string): string[][] {
 }
 
 describe("measurement CSV", () => {
-  it("writes FFC and Release with stored angles, frames, and a degrees unit row", () => {
+  it("writes one header and one row each for FFC and Release, with degrees named on the angle column", () => {
     const csv = measurementCsv(sessionId, report());
     expect(csv.startsWith("\uFEFF")).toBe(true);
     expect(csv.endsWith("\r\n")).toBe(true);
     const rows = rowsOf(csv);
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(3);
+    const angleIndex = MEASUREMENT_CSV_COLUMNS.indexOf("angle_degrees");
     expect(rows[0]).toEqual([...MEASUREMENT_CSV_COLUMNS]);
-    expect(rows[1][MEASUREMENT_CSV_COLUMNS.indexOf("angle_degrees")]).toBe(ANGLE_DEGREES_UNIT);
-    expect(rows[1].filter((cell) => cell !== "")).toEqual([ANGLE_DEGREES_UNIT]);
+    expect(rows[0][angleIndex]).toBe("angle_degrees");
+    expect(rows.filter((row) => row.length === 1 && row[0] === ANGLE_DEGREES_UNIT)).toEqual([]);
 
-    const ffc = Object.fromEntries(MEASUREMENT_CSV_COLUMNS.map((column, index) => [column, rows[2][index]]));
-    const release = Object.fromEntries(MEASUREMENT_CSV_COLUMNS.map((column, index) => [column, rows[3][index]]));
+    const ffc = Object.fromEntries(MEASUREMENT_CSV_COLUMNS.map((column, index) => [column, rows[1][index]]));
+    const release = Object.fromEntries(MEASUREMENT_CSV_COLUMNS.map((column, index) => [column, rows[2][index]]));
     expect(ffc).toMatchObject({
       session_id: sessionId,
       bowler_id: "B01",
@@ -129,9 +130,9 @@ describe("measurement CSV", () => {
     });
     const rows = rowsOf(measurementCsv(sessionId, stored));
     const angleIndex = MEASUREMENT_CSV_COLUMNS.indexOf("angle_degrees");
-    expect(rows[2][angleIndex]).toBe("0");
-    expect(rows[3][angleIndex]).toBe("");
-    expect(rows.slice(2).map((row) => row[MEASUREMENT_CSV_COLUMNS.indexOf("phase")])).toEqual(["FFC", "Release"]);
+    expect(rows[1][angleIndex]).toBe("0");
+    expect(rows[2][angleIndex]).toBe("");
+    expect(rows.slice(1).map((row) => row[MEASUREMENT_CSV_COLUMNS.indexOf("phase")])).toEqual(["FFC", "Release"]);
     const withPath = measurementCsv(sessionId, {
       ...stored,
       video_filename: "C:\\videos\\bowler.mp4",
@@ -147,8 +148,8 @@ describe("measurement CSV", () => {
         release: { frame_index: 4, angle_degrees: 90.25, status: "", reason: "", review_status: "", warnings: [], evidence: [] },
       }),
     );
-    const ffc = rows[2];
-    const release = rows[3];
+    const ffc = rows[1];
+    const release = rows[2];
     const column = (name: (typeof MEASUREMENT_CSV_COLUMNS)[number]) => MEASUREMENT_CSV_COLUMNS.indexOf(name);
     expect(ffc[column("bowler_id")]).toBe("");
     expect(ffc[column("delivery_id")]).toBe("");
@@ -164,7 +165,7 @@ describe("measurement CSV", () => {
     expect(release[column("frame_index")]).toBe("4");
     expect(release[column("angle_degrees")]).toBe("90.25");
     expect(release[column("measurement_status")]).toBe("");
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(3);
   });
 
   it("quotes commas, quotes, and newlines, and neutralizes formula text", () => {
@@ -195,14 +196,14 @@ describe("measurement CSV", () => {
       }),
     );
     const column = (name: (typeof MEASUREMENT_CSV_COLUMNS)[number]) => MEASUREMENT_CSV_COLUMNS.indexOf(name);
-    expect(rows[2][column("session_id")]).toBe("'=session");
-    expect(rows[2][column("bowler_id")]).toBe("'=1+1");
-    expect(rows[2][column("delivery_id")]).toBe('\'+cmd|" /c calc"!A0');
-    expect(rows[2][column("front_leg")]).toBe("'@SUM(A1)");
-    expect(rows[2][column("review_status")]).toBe("' -1+1");
-    expect(rows[2][column("warnings")]).toBe('\'=HYPERLINK("http://evil"); He said "stop", then left; line1\nline2');
-    expect(rows[3][column("review_status")]).toBe("'\t=1");
-    expect(rows[2][column("angle_degrees")]).toBe("10");
+    expect(rows[1][column("session_id")]).toBe("'=session");
+    expect(rows[1][column("bowler_id")]).toBe("'=1+1");
+    expect(rows[1][column("delivery_id")]).toBe('\'+cmd|" /c calc"!A0');
+    expect(rows[1][column("front_leg")]).toBe("'@SUM(A1)");
+    expect(rows[1][column("review_status")]).toBe("' -1+1");
+    expect(rows[1][column("warnings")]).toBe('\'=HYPERLINK("http://evil"); He said "stop", then left; line1\nline2');
+    expect(rows[2][column("review_status")]).toBe("'\t=1");
+    expect(rows[1][column("angle_degrees")]).toBe("10");
     const raw = measurementCsv(sessionId, report({
       warnings: ['He said "stop", then left'],
       ffc: { ...report().ffc, warnings: [] },
