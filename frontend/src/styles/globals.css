@@ -418,9 +418,109 @@ button:disabled {
 }
 
 .metric-grid,
-.report-grid {
+.report-grid,
+.report-layout,
+.report-primary,
+.report-support {
   display: grid;
   gap: 0.75rem;
+}
+
+.report-primary > *,
+.report-support > * {
+  min-width: 0;
+}
+
+.report-knee {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgb(47 225 154 / 28%);
+}
+
+.report-knee:hover {
+  border-color: var(--accent);
+}
+
+.metric-tiles {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0.7rem 0 0.85rem;
+}
+
+.metric-tile {
+  min-width: 0;
+  padding: 0.85rem 1rem;
+  background: #101820;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.metric-tile h3 {
+  margin: 0;
+  color: var(--secondary);
+  font-family: var(--sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.metric-value {
+  margin: 0.35rem 0 0.15rem;
+  min-height: 2.6rem;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: clamp(2rem, 3.2vw, 2.625rem);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+}
+
+.metric-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.report-session,
+.report-events,
+.report-provenance {
+  padding: 0.65rem 0.8rem;
+}
+
+.report-session .facts,
+.report-events .facts,
+.report-provenance .facts {
+  gap: 0.2rem 0.65rem;
+}
+
+.report-session dt,
+.report-events dt,
+.report-provenance dt {
+  font-size: 0.7rem;
+}
+
+.report-session dd,
+.report-events dd,
+.report-provenance dd {
+  font-size: 0.82rem;
+}
+
+.session-id {
+  overflow-wrap: anywhere;
+}
+
+.session-more {
+  margin-top: 0.55rem;
+}
+
+.session-more summary {
+  color: var(--tertiary);
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.session-more .facts {
+  margin-top: 0.55rem;
 }
 
 .facts {
@@ -486,6 +586,12 @@ input[type="range"] {
   padding: 0.75rem;
 }
 
+@media (min-width: 768px) {
+  .metric-tiles {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
 @media (min-width: 800px) {
   .metric-grid {
     grid-template-columns: 1fr 1fr;
@@ -502,6 +608,16 @@ input[type="range"] {
 
   .report-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .report-primary {
+    grid-template-columns: minmax(0, 13fr) minmax(0, 7fr);
+    align-items: start;
+  }
+
+  .report-support {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
   }
 }
 

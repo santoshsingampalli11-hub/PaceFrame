@@ -156,7 +156,23 @@ describe("analysis report export", () => {
     const user = userEvent.setup();
     renderReport();
     expect(await screen.findByText("91.25°")).toBeInTheDocument();
-    expect(screen.getAllByText("Unavailable").length).toBeGreaterThan(0);
+    const releaseTile = screen.getByRole("heading", { name: "Ball release" }).closest("article");
+    expect(releaseTile).toHaveTextContent("Unavailable");
+    expect(releaseTile).not.toHaveTextContent("0.00°");
+    expect(screen.getByRole("heading", { name: "2D Front Knee Kinematics" })).toBeInTheDocument();
+    const headings = screen.getAllByRole("heading").map((heading) => heading.textContent);
+    expect(headings.indexOf("2D Front Knee Kinematics")).toBeLessThan(headings.indexOf("Session"));
+    expect(headings.indexOf("Manual events")).toBeLessThan(headings.indexOf("Session"));
+    expect(screen.getByText("not marked")).toBeInTheDocument();
+    expect(screen.getByText("5")).toBeInTheDocument();
+    expect(screen.getByText("7")).toBeInTheDocument();
+    expect(screen.getByText("Not verified")).toBeInTheDocument();
+    expect(screen.getByText("human_confirmed_filename_sidecar")).toBeInTheDocument();
+    expect(screen.getByText(sessionId)).toBeInTheDocument();
+    expect(screen.getByText("video.mp4")).toBeInTheDocument();
+    expect(screen.getByText("32 × 24")).toBeInTheDocument();
+    expect(screen.getByText("Recording conditions")).toBeInTheDocument();
+    expect(screen.getByText('Quote "here", and a comma')).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Download CSV" }));
     await user.click(screen.getByRole("button", { name: "Download JSON" }));
     expect(names).toEqual([`${sessionId}-front-knee.csv`, "B01_D01_measurement.json"]);
@@ -169,6 +185,52 @@ describe("analysis report export", () => {
     expect(csv).not.toContain("video.mp4");
     expect(await readBlob(blobs[1])).toBe(JSON.stringify(stored, null, 2));
     expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows two-decimal knee angles from the stored report and keeps full CSV precision", async () => {
+    const precise = {
+      ...stored,
+      ffc: { ...stored.ffc, angle_degrees: 168.126, status: "available" },
+      release: { ...stored.release, angle_degrees: 177.754, status: "available", warnings: [] },
+    };
+    const blobs: Blob[] = [];
+    URL.createObjectURL = vi.fn((blob: Blob) => {
+      blobs.push(blob);
+      return `blob:${blobs.length}`;
+    }) as typeof URL.createObjectURL;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const path = String(url);
+        if (path.endsWith(`/api/sessions/${sessionId}`)) return jsonResponse(session);
+        if (path.endsWith("/labels")) return jsonResponse(labels);
+        if (path.endsWith("/pose-review")) return jsonResponse({ detail: "not started" }, 404);
+        if (path.endsWith("/measure")) {
+          return jsonResponse({
+            session_id: sessionId,
+            job_id: "ef".repeat(16),
+            status: "completed",
+            message: "Measurement completed.",
+            scientific_caveat: "2D only.",
+          });
+        }
+        if (path.endsWith("/report")) {
+          return jsonResponse({ session_id: sessionId, status: "completed", report: precise });
+        }
+        return jsonResponse({ detail: "missing" }, 404);
+      }),
+    );
+    const user = userEvent.setup();
+    renderReport();
+    expect(await screen.findByText("168.13°")).toBeInTheDocument();
+    expect(screen.getByText("177.75°")).toBeInTheDocument();
+    expect(screen.queryByText("168.126°")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Status: available")).toHaveLength(2);
+    await user.click(screen.getByRole("button", { name: "Download CSV" }));
+    const csv = await readBlob(blobs[0]);
+    expect(csv).toContain("168.126");
+    expect(csv).toContain("177.754");
+    expect(csv.split("\n")[0]).toContain("angle_degrees");
   });
 
   it("does not offer a download when no measurement report is stored", async () => {
