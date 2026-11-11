@@ -1,0 +1,1 @@
+bowler_id,delivery_id,video_sha256,phase,frame_index,front_leg,image_width_px,image_height_px,hip_x_px,hip_y_px,knee_x_px,knee_y_px,ankle_x_px,ankle_y_px,reference_angle_degrees,annotator_id,ambiguity_notes

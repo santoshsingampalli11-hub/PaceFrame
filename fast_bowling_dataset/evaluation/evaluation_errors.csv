@@ -1,0 +1,1 @@
+bowler_id,delivery_id,phase,frame_index,front_leg,automatic_angle_degrees,reference_angle_degrees,signed_error_degrees,absolute_error_degrees,event_frame_disagreement,status

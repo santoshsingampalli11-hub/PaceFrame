@@ -81,7 +81,9 @@ These coordinates are image estimates, not physical measurements.
 
 ## Measurements and validation
 
-`measurements/biomechanical_measurements.csv` and `validation/manual_vs_automatic.csv` are empty templates. Phase 4 has not started. Do not add fabricated numbers.
+`measurements/biomechanical_measurements.csv` and `validation/manual_vs_automatic.csv` are empty templates. Do not add fabricated numbers.
+
+The evaluation protocol, including the recording guide and the empty inventory and reference sheets, is in `evaluation/`. Those sheets also contain no measurements. Engineering clips are not evaluation rows.
 
 Every future measurement must document: definition, formula, bowling phase, scientific justification, and validation method.
 
