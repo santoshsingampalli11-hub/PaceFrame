@@ -38,7 +38,7 @@ from app.api.session_store import (
     write_json_replace,
 )
 from app.api.settings import ApiSettings, get_settings
-from app.pilot.manual_measurement import measure_manual_front_knee
+from app.pilot.manual_measurement import capture_verified_video, measure_manual_front_knee
 from app.pose.estimator import PoseEstimationError
 
 logger = logging.getLogger("fast_bowling.api")
@@ -262,6 +262,7 @@ class MeasurementRunner:
                     public_detail(str(error), "The pose model could not be loaded."),
                 )
                 return
+            verified = capture_verified_video(session.video_path, session.manifest.video_sha256)
             attempt = measure_manual_front_knee(
                 session.video_path,
                 session.session_dir / MANIFEST_NAME,
@@ -269,6 +270,7 @@ class MeasurementRunner:
                 output,
                 confirm_label_link=True,
                 estimator=estimator,
+                verified_video=verified,
             )
             if not attempt.ok or attempt.output_path is None:
                 self._fail(

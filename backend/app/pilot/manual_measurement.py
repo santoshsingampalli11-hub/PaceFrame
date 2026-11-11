@@ -21,6 +21,7 @@ from pathlib import Path
 from app.annotations.models import AnnotationError, PhaseLabel
 from app.annotations.phase_labels import read_phase_labels
 from app.annotations.video_identity import lookup_video_filename
+from app.annotations.foot_corrections import file_sha256
 from app.biomechanics.front_knee import FrontKneeAngle, front_knee_angles_at_manual_phases
 from app.pilot.session_manifest import SessionManifestError, load_session_manifest, verify_session_manifest
 from app.pose.estimator import PoseEstimationError, PoseEstimator
@@ -44,6 +45,39 @@ class ManualMeasurementError(ValueError):
 
 
 @dataclass(frozen=True)
+class VerifiedVideo:
+    """File identity captured after a successful manifest verification in this job."""
+
+    sha256: str
+    size: int
+    mtime_ns: int
+
+
+def capture_verified_video(path: str | Path, sha256: str) -> VerifiedVideo:
+    """Record the size and modification time of a file whose hash was just accepted."""
+    stat = Path(path).stat()
+    return VerifiedVideo(sha256=sha256, size=stat.st_size, mtime_ns=stat.st_mtime_ns)
+
+
+def _video_bytes_match(path: Path, verified: VerifiedVideo) -> bool:
+    """Return whether ``path`` is still the file that was verified.
+
+    Size and modification time are checked first. The hash is read again so a
+    same-size replacement is not treated as the earlier file.
+    """
+    try:
+        stat = path.stat()
+    except OSError:
+        return False
+    if stat.st_size != verified.size or stat.st_mtime_ns != verified.mtime_ns:
+        return False
+    try:
+        return file_sha256(path) == verified.sha256
+    except OSError:
+        return False
+
+
+@dataclass(frozen=True)
 class ManualMeasurementAttempt:
     """A finished attempt. ``output_path`` is set only when a report was written."""
 
@@ -60,11 +94,16 @@ def measure_manual_front_knee(
     *,
     confirm_label_link: bool = False,
     estimator: PoseEstimator | None = None,
+    verified_video: VerifiedVideo | None = None,
 ) -> ManualMeasurementAttempt:
     """Verify the session, then measure FFC and Release on the exact manual frames.
 
     The video, label CSV, foot-correction files, and manifest are not modified.
     An existing report is not overwritten.
+
+    ``verified_video`` may skip a second full-frame inspection only when this
+    same job has already verified the manifest and the file bytes are unchanged.
+    A different hash, size, or modification time runs verification again.
     """
     video_path = Path(video)
     manifest_file = Path(manifest_path)
@@ -77,9 +116,15 @@ def measure_manual_front_knee(
         manifest = load_session_manifest(manifest_file)
     except SessionManifestError as error:
         return _stopped(str(error))
-    verification = verify_session_manifest(manifest_file, video_path)
-    if not verification.ok:
-        return _stopped(verification.message)
+    reuse = (
+        verified_video is not None
+        and verified_video.sha256 == manifest.video_sha256
+        and _video_bytes_match(video_path, verified_video)
+    )
+    if not reuse:
+        verification = verify_session_manifest(manifest_file, video_path)
+        if not verification.ok:
+            return _stopped(verification.message)
     if manifest.front_leg not in {"left", "right"}:
         return _stopped(
             "The manifest has no anatomical front leg. Recreate it with --front-leg left or --front-leg right. "

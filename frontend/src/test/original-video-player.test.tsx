@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -106,7 +106,127 @@ describe("original video player", () => {
     view.unmount();
     expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
   });
+
+  it("waits for the seek to finish before replaying after the video ends", async () => {
+    const user = userEvent.setup();
+    render(<OriginalVideoPlayer sessionId={sessionId} />);
+    const video = screen.getByLabelText("Original uploaded video") as HTMLVideoElement;
+    const seek = holdSeek(video, 4);
+    fireEvent.loadedMetadata(video);
+    fireEvent.ended(video);
+    expect(await screen.findByText(/Ended/)).toBeInTheDocument();
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    play.mockClear();
+    await user.click(screen.getByRole("button", { name: "Replay" }));
+    expect(play).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Replay" })).toBeDisabled();
+    seek.complete();
+    await waitFor(() => expect(play).toHaveBeenCalledTimes(1));
+    fireEvent.playing(video);
+    expect(await screen.findByText(/Playing/)).toBeInTheDocument();
+  });
+
+  it("ignores another Replay click while the first seek is pending", async () => {
+    const user = userEvent.setup();
+    render(<OriginalVideoPlayer sessionId={sessionId} />);
+    const video = screen.getByLabelText("Original uploaded video") as HTMLVideoElement;
+    const seek = holdSeek(video, 4);
+    fireEvent.loadedMetadata(video);
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    play.mockClear();
+    await user.click(screen.getByRole("button", { name: "Replay" }));
+    expect(screen.getByRole("button", { name: "Replay" })).toBeDisabled();
+    seek.complete();
+    await waitFor(() => expect(play).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole("button", { name: "Replay" }));
+    seek.complete();
+    await waitFor(() => expect(play).toHaveBeenCalledTimes(2));
+  });
+
+  it("does not start playback when the seek fails", async () => {
+    const user = userEvent.setup();
+    render(<OriginalVideoPlayer sessionId={sessionId} />);
+    const video = screen.getByLabelText("Original uploaded video") as HTMLVideoElement;
+    Object.defineProperty(video, "duration", { configurable: true, value: 4 });
+    Object.defineProperty(video, "ended", { configurable: true, get: () => true });
+    Object.defineProperty(video, "currentTime", {
+      configurable: true,
+      get: () => 4,
+      set: () => {
+        throw new Error("seek failed");
+      },
+    });
+    fireEvent.loadedMetadata(video);
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    play.mockClear();
+    await user.click(screen.getByRole("button", { name: "Replay" }));
+    expect(await screen.findByText("Playback did not start. Press Play again when the video is ready.")).toBeInTheDocument();
+    expect(play).not.toHaveBeenCalled();
+  });
+
+  it("does not play when the player unmounts during the seek", async () => {
+    const user = userEvent.setup();
+    const view = render(<OriginalVideoPlayer sessionId={sessionId} />);
+    const video = screen.getByLabelText("Original uploaded video") as HTMLVideoElement;
+    const seek = holdSeek(video, 4);
+    fireEvent.loadedMetadata(video);
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    play.mockClear();
+    await user.click(screen.getByRole("button", { name: "Replay" }));
+    view.unmount();
+    seek.complete();
+    await Promise.resolve();
+    expect(play).not.toHaveBeenCalled();
+  });
+
+  it("keeps the playing state when metadata arrives again", async () => {
+    render(<OriginalVideoPlayer sessionId={sessionId} />);
+    const video = screen.getByLabelText("Original uploaded video") as HTMLVideoElement;
+    Object.defineProperty(video, "duration", { configurable: true, value: 4 });
+    fireEvent.loadedMetadata(video);
+    fireEvent.playing(video);
+    expect(await screen.findByText(/Playing/)).toBeInTheDocument();
+    fireEvent.loadedMetadata(video);
+    expect(screen.getByText(/Playing/)).toBeInTheDocument();
+    expect(video.playbackRate).toBe(1);
+  });
+
+  it("reports a rejected play after the seek has settled", async () => {
+    const user = userEvent.setup();
+    HTMLMediaElement.prototype.play = vi.fn(() => Promise.reject(new Error("blocked"))) as typeof HTMLMediaElement.prototype.play;
+    render(<OriginalVideoPlayer sessionId={sessionId} />);
+    const video = screen.getByLabelText("Original uploaded video") as HTMLVideoElement;
+    Object.defineProperty(video, "duration", { configurable: true, value: 4 });
+    Object.defineProperty(video, "currentTime", { configurable: true, writable: true, value: 4 });
+    Object.defineProperty(video, "ended", { configurable: true, get: () => false });
+    fireEvent.loadedMetadata(video);
+    await user.click(screen.getByRole("button", { name: "Replay" }));
+    expect(await screen.findByText("Playback did not start. Press Play again when the video is ready.")).toBeInTheDocument();
+  });
 });
+
+function holdSeek(video: HTMLVideoElement, duration: number) {
+  let time = duration;
+  let seeking = false;
+  Object.defineProperty(video, "duration", { configurable: true, value: duration });
+  Object.defineProperty(video, "currentTime", {
+    configurable: true,
+    get: () => time,
+    set: (value: number) => {
+      seeking = true;
+      time = value;
+    },
+  });
+  Object.defineProperty(video, "seeking", { configurable: true, get: () => seeking });
+  Object.defineProperty(video, "ended", { configurable: true, get: () => time >= duration && time !== 0 });
+  return {
+    complete() {
+      seeking = false;
+      time = 0;
+      fireEvent.seeked(video);
+    },
+  };
+}
 
 describe("review page playback", () => {
   it("keeps exact-frame review and pose review beside playback", async () => {

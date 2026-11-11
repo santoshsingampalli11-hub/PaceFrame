@@ -20,11 +20,15 @@ export const OriginalVideoPlayer = forwardRef<OriginalVideoPlayerHandle, Origina
   function OriginalVideoPlayer({ sessionId, frameWidth, frameHeight }, ref) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const paintedAt = useRef(0);
+  const replayToken = useRef(0);
+  const replayLock = useRef(false);
+  const mounted = useRef(true);
   const [state, setState] = useState<PlaybackState>("loading");
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
   const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(1);
   const [playError, setPlayError] = useState<string | null>(null);
+  const [replayPending, setReplayPending] = useState(false);
   const source = originalVideoUrl(sessionId);
   const aspect = frameWidth && frameHeight ? `${frameWidth} / ${frameHeight}` : "16 / 9";
 
@@ -42,8 +46,11 @@ export const OriginalVideoPlayer = forwardRef<OriginalVideoPlayerHandle, Origina
   }));
 
   useEffect(() => {
+    mounted.current = true;
     const video = videoRef.current;
     return () => {
+      mounted.current = false;
+      replayToken.current += 1;
       video?.pause();
     };
   }, []);
@@ -82,12 +89,33 @@ export const OriginalVideoPlayer = forwardRef<OriginalVideoPlayerHandle, Origina
     videoRef.current?.pause();
   }
 
-  function replay() {
+  async function replay() {
     const video = videoRef.current;
-    if (!video || state === "error") return;
-    video.currentTime = 0;
+    if (!video || state === "error" || replayLock.current) return;
+    if (!Number.isFinite(video.duration) || video.duration <= 0) {
+      setPlayError("Playback did not start. Press Play again when the video is ready.");
+      return;
+    }
+    replayLock.current = true;
+    const token = ++replayToken.current;
+    setReplayPending(true);
+    setPlayError(null);
+    const settled = await seekToStart(video, () => mounted.current && replayToken.current === token);
+    replayLock.current = false;
+    if (!mounted.current || replayToken.current !== token) return;
+    setReplayPending(false);
+    if (!settled) {
+      setPlayError("Playback did not start. Press Play again when the video is ready.");
+      return;
+    }
     setCurrent(0);
-    void play();
+    try {
+      await video.play();
+    } catch {
+      if (mounted.current && replayToken.current === token) {
+        setPlayError("Playback did not start. Press Play again when the video is ready.");
+      }
+    }
   }
 
   function seek(next: number) {
@@ -149,7 +177,9 @@ export const OriginalVideoPlayer = forwardRef<OriginalVideoPlayerHandle, Origina
             const video = event.currentTarget;
             setDuration(Number.isFinite(video.duration) ? video.duration : 0);
             video.playbackRate = speed;
-            setState("ready");
+            setState((currentState) =>
+              currentState === "playing" || currentState === "buffering" ? currentState : "ready",
+            );
           }}
           onWaiting={() => setState((currentState) => (currentState === "error" ? currentState : "buffering"))}
           onPlaying={() => setState("playing")}
@@ -167,7 +197,7 @@ export const OriginalVideoPlayer = forwardRef<OriginalVideoPlayerHandle, Origina
         <button type="button" onClick={pause} disabled={state !== "playing" && state !== "buffering"}>
           Pause
         </button>
-        <button type="button" onClick={replay} disabled={state === "error" || state === "loading"}>
+        <button type="button" onClick={() => void replay()} disabled={state === "error" || state === "loading" || replayPending}>
           Replay
         </button>
         <label htmlFor="playback-speed">
@@ -202,6 +232,33 @@ export const OriginalVideoPlayer = forwardRef<OriginalVideoPlayerHandle, Origina
   );
   },
 );
+
+function seekToStart(video: HTMLVideoElement, stillCurrent: () => boolean): Promise<boolean> {
+  if (video.currentTime === 0 && !video.ended && !video.seeking) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      video.removeEventListener("seeked", onSeeked);
+      video.removeEventListener("error", onError);
+      window.clearTimeout(timer);
+      resolve(ok && stillCurrent());
+    };
+    const onSeeked = () => finish(video.currentTime < 0.05);
+    const onError = () => finish(false);
+    const timer = window.setTimeout(() => finish(false), 2000);
+    video.addEventListener("seeked", onSeeked);
+    video.addEventListener("error", onError);
+    try {
+      video.currentTime = 0;
+    } catch {
+      finish(false);
+      return;
+    }
+    if (!video.seeking && video.currentTime < 0.05 && !video.ended) finish(true);
+  });
+}
 
 function formatClock(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";

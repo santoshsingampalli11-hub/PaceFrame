@@ -277,3 +277,87 @@ def test_failed_report_write_leaves_no_file(monkeypatch: pytest.MonkeyPatch, tmp
     assert "Could not write" in attempt.message
     assert not output.exists()
     assert list(output.parent.glob("*.tmp")) == []
+
+
+def test_reused_verification_skips_a_second_inspection_until_the_bytes_change(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    video, manifest, labels = _session(tmp_path)
+    _labels(labels)
+    remember_video_filename(labels, "B01", "D01", video.name)
+    from app.pilot.manual_measurement import capture_verified_video
+    from app.pilot.session_manifest import load_session_manifest, verify_session_manifest
+
+    assert verify_session_manifest(manifest, video).ok
+    verified = capture_verified_video(video, load_session_manifest(manifest).video_sha256)
+    calls = {"n": 0}
+    import app.pilot.session_manifest as manifest_module
+
+    real_inspect = manifest_module.inspect_video
+
+    def counting(path: Path) -> object:
+        calls["n"] += 1
+        return real_inspect(path)
+
+    monkeypatch.setattr(manifest_module, "inspect_video", counting)
+    direct = _Estimator()
+    reused = measure_manual_front_knee(
+        video,
+        manifest,
+        labels,
+        tmp_path / "reused.json",
+        confirm_label_link=True,
+        estimator=direct,
+        verified_video=verified,
+    )
+    assert reused.ok is True
+    assert calls["n"] == 0
+    assert direct.seen == [0, 1, 2, 3]
+    full = measure_manual_front_knee(
+        video,
+        manifest,
+        labels,
+        tmp_path / "full.json",
+        confirm_label_link=True,
+        estimator=_Estimator(),
+    )
+    assert full.ok is True
+    assert calls["n"] == 1
+    reused_report = json.loads((tmp_path / "reused.json").read_text(encoding="utf-8"))
+    full_report = json.loads((tmp_path / "full.json").read_text(encoding="utf-8"))
+    assert reused_report["ffc"]["angle_degrees"] == full_report["ffc"]["angle_degrees"]
+    assert reused_report["release"]["angle_degrees"] == full_report["release"]["angle_degrees"]
+    assert reused_report["ffc"]["frame_index"] == 1
+    assert reused_report["release"]["frame_index"] == 3
+
+    other_manifest_sha = "a" * 64
+    foreign = capture_verified_video(video, other_manifest_sha)
+    foreign_estimator = _Estimator()
+    isolated = measure_manual_front_knee(
+        video,
+        manifest,
+        labels,
+        tmp_path / "isolated.json",
+        confirm_label_link=True,
+        estimator=foreign_estimator,
+        verified_video=foreign,
+    )
+    assert isolated.ok is True
+    assert calls["n"] == 2
+    assert foreign_estimator.seen == [0, 1, 2, 3]
+
+    _write_clip(video, brightness=180)
+    tampered = _Estimator()
+    rejected = measure_manual_front_knee(
+        video,
+        manifest,
+        labels,
+        tmp_path / "tampered.json",
+        confirm_label_link=True,
+        estimator=tampered,
+        verified_video=verified,
+    )
+    assert rejected.ok is False
+    assert "SHA-256" in rejected.message
+    assert tampered.seen == []
+    assert not (tmp_path / "tampered.json").exists()
