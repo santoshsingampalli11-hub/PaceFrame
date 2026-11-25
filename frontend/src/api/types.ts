@@ -76,6 +76,38 @@ export type SaveLabelsInput = {
   notes: string;
 };
 
+export type LandmarkCalculationPoint = {
+  role: string;
+  name: string;
+  x_normalized: number;
+  y_normalized: number;
+  x_px: number;
+  y_px: number;
+  visibility: number | null;
+  presence: number | null;
+};
+
+export type CalculationEvidence = {
+  schema_version: string;
+  calculation: string;
+  definition: string;
+  frame_index: number;
+  frame_timestamp_seconds: number;
+  image_width_px: number;
+  image_height_px: number;
+  front_leg: string;
+  landmark_names: string[];
+  hip: LandmarkCalculationPoint;
+  knee: LandmarkCalculationPoint;
+  ankle: LandmarkCalculationPoint;
+  angle_degrees: number;
+  origin: string;
+  positive_x: string;
+  positive_y: string;
+  coordinate_unit: string;
+  video_sha256: string | null;
+};
+
 export type KneeAngleResult = {
   frame_index: number | null;
   angle_degrees: number | null;
@@ -90,6 +122,7 @@ export type KneeAngleResult = {
     visibility: number | null;
     presence: number | null;
   }>;
+  calculation_evidence?: CalculationEvidence | null;
 };
 
 export type StoredMeasurement = {

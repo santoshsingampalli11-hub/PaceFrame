@@ -10,10 +10,10 @@ import type {
   SessionResponse,
 } from "./types";
 
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000").replace(
-  /\/$/,
-  "",
-);
+// Empty by default so a production page calls its own origin (/api, /health).
+// Vite proxies those paths to 127.0.0.1:8000 during local development.
+// Set VITE_API_BASE_URL only when the API is on a different HTTPS origin.
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
 export const MAX_UPLOAD_BYTES = 80 * 1024 * 1024;
 

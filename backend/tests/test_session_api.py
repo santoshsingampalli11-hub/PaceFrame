@@ -318,7 +318,7 @@ def test_inspect_error_does_not_leak_filesystem_paths(
     _write_clip(source)
     leaked = r"C:\Users\Santosh Singampalli\secret\delivery.mp4"
 
-    def fake_inspect(_path):
+    def fake_inspect(_path, **_kwargs):
         from app.video.inspect import VideoInspection
 
         return VideoInspection(

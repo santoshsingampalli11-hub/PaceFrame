@@ -39,6 +39,7 @@ JOB_RECORD_NAME = "job.json"
 REPORT_NAME = "report.txt"
 SUMMARY_NAME = "summary.json"
 STAGING_DIRNAME = "staging"
+PRESERVED_DIRNAME = "_preserved"
 
 STATUS_QUEUED = "queued"
 STATUS_RUNNING = "running"
@@ -190,6 +191,8 @@ def mark_interrupted_jobs(root: Path) -> None:
         job = load_job(child)
         if job is None or job.status not in ACTIVE_STATUSES:
             continue
+        if _restore_preserved(child):
+            continue
         _discard_outputs(pose_review_dir(child))
         save_job(
             child,
@@ -243,6 +246,7 @@ class PoseReviewRunner:
                 raise DuplicatePoseReviewError("A pose review is already running for this session.")
             if self._active >= self._settings.max_pose_jobs:
                 raise PoseReviewCapacityError("Pose review capacity is full.")
+            _preserve_completed(session.session_dir)
             save_job(session.session_dir, job)
             self._inflight_sessions.add(session.session_id)
             self._active += 1
@@ -369,6 +373,9 @@ class PoseReviewRunner:
                     error=None,
                 ),
             )
+            preserved = review_root / PRESERVED_DIRNAME
+            if preserved.exists():
+                shutil.rmtree(preserved, ignore_errors=True)
         except OSError:
             logger.exception("Pose review could not write its report")
             self._fail(session.session_dir, job.job_id, _FAILED)
@@ -378,6 +385,8 @@ class PoseReviewRunner:
     def _fail(self, session_dir: Path, job_id: str, message: str) -> None:
         current = load_job(session_dir)
         if current is None or current.job_id != job_id:
+            return
+        if _restore_preserved(session_dir):
             return
         _discard_outputs(pose_review_dir(session_dir))
         save_job(
@@ -479,6 +488,52 @@ def list_overlay_frames(session_dir: Path, frame_indexes: tuple[int, ...]) -> li
         if path is not None and path.is_file():
             present.append(index)
     return present
+
+
+def _preserve_completed(session_dir: Path) -> None:
+    """Copy a completed review aside before a rerun replaces the job record."""
+    review = pose_review_dir(session_dir)
+    preserved = review / PRESERVED_DIRNAME
+    if preserved.exists():
+        shutil.rmtree(preserved, ignore_errors=True)
+    job = load_job(session_dir)
+    if job is None or job.status != STATUS_COMPLETED or not (review / REPORT_NAME).is_file():
+        return
+    preserved.mkdir(parents=True, exist_ok=True)
+    for name in (JOB_RECORD_NAME, REPORT_NAME, SUMMARY_NAME):
+        source = review / name
+        if source.is_file():
+            shutil.copy2(source, preserved / name)
+    for png in review.glob("frame_*.png"):
+        if png.is_file():
+            shutil.copy2(png, preserved / png.name)
+
+
+def _restore_preserved(session_dir: Path) -> bool:
+    """Put the previous successful review back. Return False when there is none."""
+    review = pose_review_dir(session_dir)
+    preserved = review / PRESERVED_DIRNAME
+    previous_job = preserved / JOB_RECORD_NAME
+    if not previous_job.is_file():
+        return False
+    for png in review.glob("frame_*.png"):
+        if png.is_file():
+            png.unlink()
+    for png in preserved.glob("frame_*.png"):
+        if png.is_file():
+            shutil.copy2(png, review / png.name)
+    for name in (REPORT_NAME, SUMMARY_NAME, JOB_RECORD_NAME):
+        source = preserved / name
+        target = review / name
+        if source.is_file():
+            shutil.copy2(source, target)
+        elif target.is_file() and name != JOB_RECORD_NAME:
+            target.unlink()
+    staging = review / STAGING_DIRNAME
+    if staging.exists():
+        shutil.rmtree(staging, ignore_errors=True)
+    shutil.rmtree(preserved, ignore_errors=True)
+    return True
 
 
 def _promote_overlays(staging: Path, review_root: Path, frame_indexes: tuple[int, ...]) -> None:

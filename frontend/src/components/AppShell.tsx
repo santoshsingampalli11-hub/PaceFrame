@@ -25,10 +25,13 @@ export function AppShell() {
 
   return (
     <DeliverySessionProvider>
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
       <div className="lab">
-        <aside className={menuOpen ? "sidebar open" : "sidebar"}>
-          <p className="brand">Kinematic Laboratory</p>
-          <p className="brand-sub">Fast bowling, one camera</p>
+        <aside id="workflow-menu" className={menuOpen ? "sidebar open" : "sidebar"}>
+          <p className="brand">PaceFrame</p>
+          <p className="brand-sub">Every Frame. Better Form.</p>
           <nav aria-label="Workflow">
             {STEPS.map((step) => {
               const href = step.suffix === "" ? base || "/" : `${base}${step.suffix}`;
@@ -58,7 +61,13 @@ export function AppShell() {
         </aside>
         <div className="lab-main">
           <header className="topbar">
-            <button type="button" className="menu-button" onClick={() => setMenuOpen((open) => !open)}>
+            <button
+              type="button"
+              className="menu-button"
+              aria-expanded={menuOpen}
+              aria-controls="workflow-menu"
+              onClick={() => setMenuOpen((open) => !open)}
+            >
               {menuOpen ? "Close menu" : "Menu"}
             </button>
             <div>
@@ -81,14 +90,14 @@ export function AppShell() {
                     ? location.pathname === "/" || location.pathname === base
                     : location.pathname.endsWith(step.suffix);
                 return (
-                  <li key={step.id} className={here ? "current" : undefined}>
+                  <li key={step.id} className={here ? "current" : undefined} aria-current={here ? "step" : undefined}>
                     {step.id} {step.label}
                   </li>
                 );
               })}
             </ol>
           </header>
-          <main key={location.pathname} className="route-stage">
+          <main id="main-content" tabIndex={-1} key={location.pathname} className="route-stage">
             <Outlet />
           </main>
         </div>

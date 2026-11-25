@@ -35,7 +35,6 @@ export function ReviewPage() {
               frameWidth={session.width}
               frameHeight={session.height}
             />
-            <p className="hint">Arrow keys move one decoded frame when the original-frame section is focused.</p>
           </div>
           <PoseReviewPanel sessionId={session.session_id} decodedFrameCount={session.decoded_frame_count} />
         </div>

@@ -63,6 +63,16 @@ def test_right_angle_knee_is_90_degrees() -> None:
     assert result.angle_degrees == pytest.approx(90.0)
 
 
+def test_same_frame_angle_is_reproducible() -> None:
+    frame = _frame(4, _bent_120())
+    first = front_knee_angle(frame, "left", "FFC")
+    second = front_knee_angle(frame, "left", "FFC")
+    assert first.status == "available"
+    assert second.status == "available"
+    assert first.angle_degrees == second.angle_degrees
+    assert first.angle_degrees == pytest.approx(120.0)
+
+
 def test_bent_knee_is_120_degrees_via_the_shared_angle_function() -> None:
     points = _bent_120()
     frame = _frame(4, points)

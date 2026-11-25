@@ -26,7 +26,7 @@ Start the API from `backend` with one worker:
 
 ## Environment
 
-`VITE_API_BASE_URL` defaults to `http://127.0.0.1:8000`. Copy `.env.example` to `.env` only if the API is on another local URL. CORS on the API allows `http://localhost:5173` and `http://127.0.0.1:5173`.
+`VITE_API_BASE_URL` is empty by default. The Vite development server proxies `/api` and `/health` to `http://127.0.0.1:8000`. Leave the variable empty for a production build so the page uses same-origin `/api`. Copy `.env.example` to `.env` only when the API is on another origin. CORS on the API allows `http://localhost:5173` and `http://127.0.0.1:5173`.
 
 ## What this app does
 

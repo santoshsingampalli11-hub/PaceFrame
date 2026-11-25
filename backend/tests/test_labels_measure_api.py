@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import threading
 from pathlib import Path
 
@@ -10,6 +11,7 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
+from app.annotations.foot_corrections import file_sha256
 from app.api.measurement_jobs import (
     STATUS_RUNNING,
     MeasurementJob,
@@ -19,7 +21,9 @@ from app.api.measurement_jobs import (
     save_measurement_job,
 )
 from app.api.pose_review_jobs import reset_job_runner, set_estimator_factory, utc_now
+from app.api.session_store import stored_video_filename
 from app.api.settings import ApiSettings, set_settings_override
+from app.biomechanics.geometry import Point2D, angle_abc_degrees
 from app.main import app
 from app.pose.estimator import PoseEstimationError
 from app.pose.landmarks import Landmark, PoseFrame
@@ -194,7 +198,34 @@ def test_corrupt_labels_and_hash_mismatch(client: TestClient, api_settings: ApiS
     assert changed.status_code == 400
 
 
-def test_successful_measurement_and_report(client: TestClient, tmp_path: Path) -> None:
+def _assert_returned_calculation_evidence(
+    phase: dict[str, object],
+    *,
+    frame_index: int,
+    front_leg: str,
+    video_sha256: str,
+) -> None:
+    evidence = phase["calculation_evidence"]
+    assert isinstance(evidence, dict)
+    assert evidence["frame_index"] == frame_index
+    assert evidence["front_leg"] == front_leg
+    assert evidence["angle_degrees"] == pytest.approx(phase["angle_degrees"])
+    assert evidence["video_sha256"] == video_sha256
+    assert evidence["landmark_names"] == [f"{front_leg}_hip", f"{front_leg}_knee", f"{front_leg}_ankle"]
+    width = evidence["image_width_px"]
+    height = evidence["image_height_px"]
+    pixels = []
+    for role in ("hip", "knee", "ankle"):
+        point = evidence[role]
+        assert isinstance(point, dict)
+        assert math.isfinite(point["x_px"]) and math.isfinite(point["y_px"])
+        assert point["x_px"] == pytest.approx(point["x_normalized"] * width)
+        assert point["y_px"] == pytest.approx(point["y_normalized"] * height)
+        pixels.append(Point2D(point["x_px"], point["y_px"]))
+    assert angle_abc_degrees(pixels[0], pixels[1], pixels[2]) == pytest.approx(phase["angle_degrees"])
+
+
+def test_successful_measurement_and_report(client: TestClient, api_settings: ApiSettings, tmp_path: Path) -> None:
     session_id, before = _upload(client, tmp_path)
     source = tmp_path / "D01.avi"
     estimator = _KneeEstimator()
@@ -224,6 +255,21 @@ def test_successful_measurement_and_report(client: TestClient, tmp_path: Path) -
     assert payload["ffc"]["angle_degrees"] is not None
     assert payload["release"]["angle_degrees"] is not None
     assert payload["ffc"]["status"] == "available"
+    stored_video = api_settings.session_root / session_id / stored_video_filename(".avi")
+    stored_hash = file_sha256(stored_video)
+    assert payload["video_sha256"] == stored_hash
+    _assert_returned_calculation_evidence(
+        payload["ffc"],
+        frame_index=payload["ffc_frame"],
+        front_leg=payload["front_leg"],
+        video_sha256=stored_hash,
+    )
+    _assert_returned_calculation_evidence(
+        payload["release"],
+        frame_index=payload["release_frame"],
+        front_leg=payload["front_leg"],
+        video_sha256=stored_hash,
+    )
     assert payload["annotation_byte_identity_verified"] is False
     assert estimator.closed is True
     assert estimator.seen == list(range(FRAME_COUNT))

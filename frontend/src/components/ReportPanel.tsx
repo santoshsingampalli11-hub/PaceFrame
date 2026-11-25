@@ -7,7 +7,7 @@ import {
   getPoseReviewReport,
   getSessionLabels,
 } from "../api/client";
-import type { PoseReviewReport, SessionLabels, SessionResponse, StoredMeasurement } from "../api/types";
+import type { CalculationEvidence, PoseReviewReport, SessionLabels, SessionResponse, StoredMeasurement } from "../api/types";
 import { MeasurementExportButtons } from "./MeasurementExportButtons";
 import { ScientificLimitations } from "./LimitationSection";
 
@@ -92,6 +92,8 @@ export function ReportPanel({ session }: ReportPanelProps) {
                 <p className="metric-status">Status: {measurement?.release.status ?? "not stored"}</p>
               </article>
             </div>
+            <MeasurementEvidence phase="FFC" evidence={measurement?.ffc.calculation_evidence} />
+            <MeasurementEvidence phase="Release" evidence={measurement?.release.calculation_evidence} />
             {measurement ? null : <p>No measurement report is stored yet.</p>}
             <MeasurementExportButtons
               sessionId={session.session_id}
@@ -163,5 +165,79 @@ export function ReportPanel({ session }: ReportPanelProps) {
       </div>
       {measurement ? <ScientificLimitations measurement={measurement} /> : null}
     </section>
+  );
+}
+
+function LandmarkRow({ label, point }: { label: string; point: CalculationEvidence["hip"] | undefined }) {
+  if (!point) {
+    return (
+      <tr>
+        <th scope="row">{label}</th>
+        <td colSpan={5}>not stored</td>
+      </tr>
+    );
+  }
+  return (
+    <tr>
+      <th scope="row">{label}</th>
+      <td>{point.name}</td>
+      <td>{point.x_px}</td>
+      <td>{point.y_px}</td>
+      <td>{point.visibility ?? "not stored"}</td>
+      <td>{point.presence ?? "not stored"}</td>
+    </tr>
+  );
+}
+
+function MeasurementEvidence({ phase, evidence }: { phase: string; evidence: CalculationEvidence | null | undefined }) {
+  if (!evidence) return null;
+  const hash = evidence.video_sha256 ?? "";
+  const shortHash = hash.length > 20 ? `${hash.slice(0, 12)}…${hash.slice(-8)}` : hash;
+  return (
+    <details className="measurement-evidence">
+      <summary>{phase} measurement evidence</summary>
+      <dl className="facts">
+        <dt>Video SHA-256</dt>
+        <dd title={hash}>{shortHash || "not stored"}</dd>
+        <dt>Frame</dt>
+        <dd>
+          {evidence.frame_index} ({evidence.image_width_px} × {evidence.image_height_px} px)
+        </dd>
+        <dt>Anatomical side</dt>
+        <dd>{evidence.front_leg}</dd>
+        <dt>Angle</dt>
+        <dd>
+          {evidence.angle_degrees} degrees. {evidence.definition}
+        </dd>
+        <dt>Version</dt>
+        <dd>
+          {evidence.schema_version}; {evidence.calculation}
+        </dd>
+      </dl>
+      <div className="evidence-table-wrap">
+        <table className="evidence-table">
+          <caption>
+            {phase} landmark inputs. Origin {evidence.origin}, positive x {evidence.positive_x}, positive y{" "}
+            {evidence.positive_y}, unit {evidence.coordinate_unit}. Visibility and presence are model scores, not
+            accuracy.
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Point</th>
+              <th scope="col">Landmark</th>
+              <th scope="col">x px</th>
+              <th scope="col">y px</th>
+              <th scope="col">Visibility</th>
+              <th scope="col">Presence</th>
+            </tr>
+          </thead>
+          <tbody>
+            <LandmarkRow label="Hip" point={evidence.hip} />
+            <LandmarkRow label="Knee" point={evidence.knee} />
+            <LandmarkRow label="Ankle" point={evidence.ankle} />
+          </tbody>
+        </table>
+      </div>
+    </details>
   );
 }

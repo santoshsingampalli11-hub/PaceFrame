@@ -102,15 +102,18 @@ export function ManualEventAnnotationPanel({
   }
 
   return (
-    <section className="panel" aria-label="Manual events">
+    <section className="panel annotation-panel" aria-label="Manual events">
       <h2>Manual events</h2>
       <p className="hint">
         Mark the frame that is on screen. BFC is optional. FFC and Release are required before a later measurement.
         Nothing is detected automatically, and nothing is saved until you press Save labels.
       </p>
-      <p>
+      <p className="displayed-frame">
         Displayed frame: <strong>{displayedFrame === null ? "not loaded" : displayedFrame}</strong>
       </p>
+      {!locked && displayedFrame === null ? (
+        <p className="hint">Marking is available once the requested frame image has finished loading.</p>
+      ) : null}
       {labelsError ? <p role="alert">{labelsError}</p> : null}
       {locked && saved ? <SavedLabels labels={saved} onShowFrame={onShowFrame} /> : null}
       {!locked ? (
@@ -202,7 +205,7 @@ function EventSummary({
   onClear: (eventName: keyof EventDraft) => void;
 }) {
   return (
-    <ul>
+    <ul className="event-summary" aria-label="Unsaved event frames">
       <EventLine name="BFC" eventName="bfc" index={draft.bfc} onShowFrame={onShowFrame} onClear={onClear} />
       <EventLine name="FFC" eventName="ffc" index={draft.ffc} onShowFrame={onShowFrame} onClear={onClear} />
       <EventLine name="Release" eventName="release" index={draft.release} onShowFrame={onShowFrame} onClear={onClear} />

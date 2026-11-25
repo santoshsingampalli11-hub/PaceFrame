@@ -16,8 +16,8 @@ This is a single-camera smartphone system, not laboratory motion capture. It doe
 | 3.5 Pose quality diagnostics (no accept/reject) | Complete |
 | Manual phase-label infrastructure | Complete |
 | Local real-video annotation window | Complete |
-| 4. Automatic bowling phase detection | Experimental BFC/FFC candidates only; not validated |
-| Biomechanical metrics | 2D front-knee angle at manual FFC and Release, compared with a manual reference angle; not a 3D joint angle |
+| 4. Automatic bowling phase detection | Not part of the delivered application |
+| Biomechanical metrics | 2D front-knee angle at manually marked FFC and Release; not a 3D joint angle and not a completed accuracy study |
 
 Project rules are in `.cursor/rules/`. Backend details are in `backend/README.md`. Dataset rules are in `fast_bowling_dataset/README.md`.
 
@@ -38,10 +38,14 @@ MediaPipe is isolated in `backend/app/pose/mediapipe_estimator.py`. Later biomec
 
 ## Setup and tests
 
-See `backend/README.md` for virtual environment, dependencies, the pose model, FastAPI, video reading, pose estimation, and pytest.
+See `backend/README.md` for virtual environment, dependencies, the pose model, FastAPI, and pytest. See `frontend/README.md` for the web application. See `docs/DEPLOYMENT.md` for the local run. The app stays on one computer. It is not a public deployment.
 
-## Next step
+## Submission notes
 
-Record or obtain a **standardized side-on** bowling video, run the debug overlay and quality diagnostics, then add manual BFC / FFC / release labels when a delivery is ready. Automatic phase detection has not started.
+- `docs/PROBLEM_STATEMENT.md`
+- `docs/NOT_BUILT_AND_WHY.md`
+- `docs/COACH_CONSULTATION.md`
+
+A person marks front-foot contact and release. The application does not detect those events automatically, does not give coaching recommendations, and does not claim laboratory or clinical accuracy.
 
 Do not use the earlier moving-camera run-up clip, or broadcast stress-test footage, as validation, training data, or ground truth.

@@ -189,7 +189,7 @@ describe("session page", () => {
     renderAt("/sessions/not-a-session");
     expect(await screen.findByRole("alert")).toHaveTextContent("This session id is not valid.");
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(String(fetchMock.mock.calls[0][0])).toBe("http://127.0.0.1:8000/health");
+    expect(String(fetchMock.mock.calls[0][0])).toBe("/health");
     expect(screen.queryByText("Session details")).not.toBeInTheDocument();
   });
 });

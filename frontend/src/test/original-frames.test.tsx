@@ -85,6 +85,41 @@ describe("original frame viewer", () => {
     expect(requested).toEqual(["0", "1"]);
   });
 
+  it("steps ten frames and keeps every step inside the decoded range", async () => {
+    const long = { ...session, decoded_frame_count: 25 };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const path = String(url);
+        if (path.endsWith(`/api/sessions/${sessionId}`)) return jsonResponse(long);
+        if (path.endsWith("/pose-review")) return jsonResponse({ detail: "No pose review job was found." }, 404);
+        const match = path.match(/frames\/(\d+)$/);
+        if (match) return jpeg(Number(match[1]) + 1);
+        return jsonResponse({ detail: "missing" }, 404);
+      }),
+    );
+    const user = userEvent.setup();
+    renderSession();
+    await screen.findByRole("img", { name: "Original decoded frame 0" });
+    expect(screen.getByRole("button", { name: "Back 10 frames" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Forward 10 frames" }));
+    expect(await screen.findByRole("img", { name: "Original decoded frame 10" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Forward 10 frames" }));
+    await user.click(screen.getByRole("button", { name: "Forward 10 frames" }));
+    expect(await screen.findByRole("img", { name: "Original decoded frame 24" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Forward 10 frames" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Back 10 frames" }));
+    expect(await screen.findByRole("img", { name: "Original decoded frame 14" })).toBeInTheDocument();
+
+    screen.getByRole("region", { name: "Original video frames" }).focus();
+    await user.keyboard("{Home}");
+    expect(await screen.findByRole("img", { name: "Original decoded frame 0" })).toBeInTheDocument();
+    await user.keyboard("{End}");
+    expect(await screen.findByRole("img", { name: "Original decoded frame 24" })).toBeInTheDocument();
+    await user.keyboard("{Shift>}{ArrowLeft}{/Shift}");
+    expect(await screen.findByRole("img", { name: "Original decoded frame 14" })).toBeInTheDocument();
+  });
+
   it("jumps and slides only to valid indexes", async () => {
     vi.stubGlobal(
       "fetch",

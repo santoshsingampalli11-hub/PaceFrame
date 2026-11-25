@@ -137,7 +137,7 @@ export function KneeMeasurementPanel({ session }: KneeMeasurementPanelProps) {
         <p role="status">A measurement report is already stored. Another job was not started.</p>
       )}
       {result ? (
-        <div className="metric-grid">
+        <div className="metric-tiles">
           <AngleCard title="Front-foot contact" frame={result.ffc_frame} angle={result.ffc} />
           <AngleCard title="Ball release" frame={result.release_frame} angle={result.release} />
         </div>
@@ -174,14 +174,14 @@ export function missingPrerequisites(labels: SessionLabels | null): string[] {
 function AngleCard({ title, frame, angle }: { title: string; frame: number | null; angle: KneeAngleResult }) {
   const value = angle.status === "available" && angle.angle_degrees !== null ? `${angle.angle_degrees.toFixed(2)}°` : "Unavailable";
   return (
-    <article className="panel">
+    <article className="metric-tile angle-card">
       <h3>{title}</h3>
-      <p>Frame: {frame ?? "Unavailable"}</p>
-      <p className="metric">{value}</p>
-      <p>Status: {angle.status}</p>
-      <p>Review: {angle.review_status || "Unavailable"}</p>
-      {angle.reason ? <p>{angle.reason}</p> : null}
-      <ul>
+      <p className="metric-value">{value}</p>
+      <p className="metric-status">Frame: {frame ?? "Unavailable"}</p>
+      <p className="metric-status">Status: {angle.status}</p>
+      <p className="metric-status">Review: {angle.review_status || "Unavailable"}</p>
+      {angle.reason ? <p className="angle-reason">{angle.reason}</p> : null}
+      <ul className="landmark-list" aria-label={`${title} landmarks`}>
         {(angle.evidence ?? []).map((item) => (
           <li key={`${item.role}-${item.name}`}>
             {item.role} {item.name}: {item.available ? "present" : "missing"}

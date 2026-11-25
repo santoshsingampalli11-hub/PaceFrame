@@ -6,6 +6,8 @@ export type OriginalFrameViewerHandle = {
   goTo: (index: number) => void;
 };
 
+const LARGE_STEP = 10;
+
 type ShownFrame = {
   sessionId: string;
   index: number;
@@ -124,13 +126,22 @@ export const OriginalVideoFrameViewer = forwardRef<OriginalFrameViewerHandle, Or
     ) {
       return;
     }
+    const step = event.shiftKey ? LARGE_STEP : 1;
     if (event.key === "ArrowLeft") {
       event.preventDefault();
-      goTo(requested - 1);
+      goTo(requested - step);
     }
     if (event.key === "ArrowRight") {
       event.preventDefault();
-      goTo(requested + 1);
+      goTo(requested + step);
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      goTo(0);
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      goTo(lastIndex);
     }
   }
 
@@ -198,12 +209,20 @@ export const OriginalVideoFrameViewer = forwardRef<OriginalFrameViewerHandle, Or
         )}
       </div>
       <div className="frame-controls">
-        <button type="button" onClick={() => goTo(requested - 1)} disabled={requested <= 0}>
-          Previous frame
-        </button>
-        <button type="button" onClick={() => goTo(requested + 1)} disabled={requested >= lastIndex}>
-          Next frame
-        </button>
+        <div className="frame-step" role="group" aria-label="Step through decoded frames">
+          <button type="button" onClick={() => goTo(requested - LARGE_STEP)} disabled={requested <= 0}>
+            Back {LARGE_STEP} frames
+          </button>
+          <button type="button" onClick={() => goTo(requested - 1)} disabled={requested <= 0}>
+            Previous frame
+          </button>
+          <button type="button" onClick={() => goTo(requested + 1)} disabled={requested >= lastIndex}>
+            Next frame
+          </button>
+          <button type="button" onClick={() => goTo(requested + LARGE_STEP)} disabled={requested >= lastIndex}>
+            Forward {LARGE_STEP} frames
+          </button>
+        </div>
         <form onSubmit={onJump}>
           <label htmlFor="jump-frame">
             Jump to frame
@@ -228,6 +247,10 @@ export const OriginalVideoFrameViewer = forwardRef<OriginalFrameViewerHandle, Or
           onChange={(event) => onSlider(Number(event.target.value))}
         />
       </label>
+      <p className="hint">
+        When this section is focused: Left and Right arrows move one decoded frame, Shift with an arrow moves{" "}
+        {LARGE_STEP}, and Home and End show the first and last frame.
+      </p>
     </section>
   );
 },

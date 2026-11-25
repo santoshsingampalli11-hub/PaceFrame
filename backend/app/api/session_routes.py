@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import logging
 import re
+from functools import partial
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from app.api.errors import error_payload
 from app.api.schemas import SessionResponse
@@ -37,7 +39,7 @@ from app.pilot.session_manifest import (
     create_session_manifest,
     load_session_manifest,
 )
-from app.video.inspect import inspect_video
+from app.video.inspect import DURATION_LIMIT_ERROR, FRAME_LIMIT_ERROR, inspect_video
 
 logger = logging.getLogger("fast_bowling.api")
 
@@ -111,7 +113,16 @@ async def create_session(
         except SessionStoreError as error:
             raise HTTPException(status_code=400, detail=_public_error(str(error))) from error
 
-        inspection = inspect_video(destination)
+        inspection = await run_in_threadpool(
+            partial(
+                inspect_video,
+                destination,
+                max_decoded_frames=settings.max_decoded_frames,
+                max_duration_seconds=settings.max_duration_seconds,
+            )
+        )
+        if inspection.error in {DURATION_LIMIT_ERROR, FRAME_LIMIT_ERROR}:
+            raise HTTPException(status_code=400, detail=inspection.error)
         if (
             inspection.error
             or inspection.width is None
@@ -122,14 +133,24 @@ async def create_session(
             or inspection.orientation not in ALLOWED_ORIENTATIONS
         ):
             raise HTTPException(status_code=400, detail="Video could not be decoded.")
+        if inspection.decoded_frame_count > settings.max_decoded_frames:
+            raise HTTPException(status_code=400, detail=FRAME_LIMIT_ERROR)
+        if (
+            inspection.estimated_duration_seconds is not None
+            and inspection.estimated_duration_seconds > settings.max_duration_seconds
+        ):
+            raise HTTPException(status_code=400, detail=DURATION_LIMIT_ERROR)
 
         try:
-            manifest = create_session_manifest(
-                destination,
-                bowler,
-                delivery,
-                session_dir / MANIFEST_NAME,
-                leg,
+            manifest = await run_in_threadpool(
+                partial(
+                    create_session_manifest,
+                    destination,
+                    bowler,
+                    delivery,
+                    session_dir / MANIFEST_NAME,
+                    leg,
+                )
             )
         except SessionManifestError as error:
             raise HTTPException(status_code=400, detail=_public_error(str(error))) from error

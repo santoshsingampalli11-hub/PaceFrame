@@ -278,8 +278,8 @@ def _report(
         "full_body_visibility_confirmed": manifest.full_body_visibility_confirmed,
         "ffc_frame": label.ffc_frame,
         "release_frame": label.release_frame,
-        "ffc": _angle_json(ffc),
-        "release": _angle_json(release),
+        "ffc": _angle_json(ffc, manifest.video_sha256),
+        "release": _angle_json(release, manifest.video_sha256),
         "warnings": _warnings(manifest),
         "limitations": list(_LIMITATIONS),
     }
@@ -296,7 +296,12 @@ def _warnings(manifest: object) -> list[str]:
     return warnings
 
 
-def _angle_json(result: FrontKneeAngle) -> dict[str, object]:
+def _angle_json(result: FrontKneeAngle, video_sha256: str) -> dict[str, object]:
+    evidence = None
+    if result.calculation_evidence is not None:
+        stored = result.calculation_evidence.to_json()
+        stored["video_sha256"] = video_sha256
+        evidence = stored
     return {
         "frame_index": result.frame_index,
         "angle_degrees": result.angle_degrees,
@@ -317,6 +322,7 @@ def _angle_json(result: FrontKneeAngle) -> dict[str, object]:
             }
             for item in result.evidence
         ],
+        "calculation_evidence": evidence,
     }
 
 

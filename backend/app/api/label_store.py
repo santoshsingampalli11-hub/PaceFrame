@@ -69,6 +69,9 @@ def save_session_labels(
     if front_leg not in {"left", "right"}:
         raise SessionStoreError("front_leg must be left or right.")
     csv_path = labels_path(session.session_dir)
+    report_path = session.session_dir / "measurement" / "report.json"
+    if replace_existing and report_path.is_file():
+        raise LabelConflictError("Labels cannot be replaced after a measurement report exists.")
     if csv_path.exists() and not replace_existing:
         raise LabelConflictError("Labels already exist for this session. Pass replace_existing true to replace them.")
 

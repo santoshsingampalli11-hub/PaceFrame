@@ -1,0 +1,26 @@
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.backend
+    environment:
+      FAST_BOWLING_SESSION_ROOT: /data
+      FAST_BOWLING_CORS_ORIGINS: http://127.0.0.1:8080
+      FAST_BOWLING_TRUSTED_HOSTS: localhost,127.0.0.1,backend
+      FAST_BOWLING_RATE_LIMIT: "1"
+    volumes:
+      - paceframe-data:/data
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.frontend
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      - backend
+
+volumes:
+  paceframe-data:

@@ -207,11 +207,21 @@ function FrameViewer({
         body, and foot corrections are not applied.
       </p>
       {failed ? <p role="alert">The overlay image for frame {current} was not found.</p> : null}
-      <img
-        src={poseReviewFrameUrl(sessionId, current)}
-        alt={`Raw pose overlay for decoded frame ${current}`}
-        onError={onError}
-      />
+      <div className="overlay-stage">
+        <img
+          className="overlay-image"
+          src={poseReviewFrameUrl(sessionId, current)}
+          alt={`Raw pose overlay for decoded frame ${current}`}
+          onError={onError}
+        />
+      </div>
+      {failed ? null : (
+        <p className="hint">
+          <a href={poseReviewFrameUrl(sessionId, current)} target="_blank" rel="noreferrer">
+            Open frame {current} overlay at full size
+          </a>
+        </p>
+      )}
       <div className="frame-controls">
         <button type="button" disabled={position <= 0} onClick={() => onSelect(frames[position - 1])}>
           Previous exported frame

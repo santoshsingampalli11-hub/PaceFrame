@@ -10,7 +10,7 @@ Python backend for the Fast Bowling V1 prototype. It currently has:
 
 Upload creates a local session and a SHA-256 manifest. It does not run pose estimation or knee measurement, and a decoded file is not a scientifically suitable recording.
 
-**Quality diagnostics do not accept or reject videos.** Manual phase labels are annotator-selected frame indices, not laboratory ground truth. Automatic BFC / FFC / release detection is not implemented. There are no cricket-specific biomechanical metrics.
+**Quality diagnostics do not accept or reject videos.** Manual phase labels are annotator-selected frame indices, not laboratory ground truth. Automatic BFC / FFC / release detection is not implemented. The delivered measurement is the manual 2D front-knee angle described later in this file. It is not a 3D laboratory result, an injury prediction, or a coaching recommendation.
 
 Requires Python 3.12.
 

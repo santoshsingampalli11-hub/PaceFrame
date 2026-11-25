@@ -60,6 +60,9 @@ SOURCE = "raw_2d_mediapipe_landmarks"
 REVIEW_CLEAR = "no_structural_warning"
 REVIEW_REQUIRED = "review_required"
 REVIEW_UNAVAILABLE = "unavailable"
+EVIDENCE_SCHEMA_VERSION = "front-knee-evidence-v1"
+CALCULATION_ID = "angle_abc_degrees"
+ANGLE_DEFINITION = "unsigned interior hip-knee-ankle angle, vertex at the knee, degrees 0 to 180"
 _LEGS = {"left", "right"}
 _PHASES = {"FFC", "Release"}
 _PARTS = ("hip", "knee", "ankle")
@@ -84,6 +87,86 @@ class LandmarkEvidence:
 
 
 @dataclass(frozen=True)
+class LandmarkCalculationPoint:
+    """One joint as it was passed into the angle function.
+
+    Pixel values are the floating-point inputs. They are not rounded.
+    Visibility and presence stay null when the model did not supply them.
+    """
+
+    role: str
+    name: str
+    x_normalized: float
+    y_normalized: float
+    x_px: float
+    y_px: float
+    visibility: float | None
+    presence: float | None
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "role": self.role,
+            "name": self.name,
+            "x_normalized": self.x_normalized,
+            "y_normalized": self.y_normalized,
+            "x_px": self.x_px,
+            "y_px": self.y_px,
+            "visibility": self.visibility,
+            "presence": self.presence,
+        }
+
+
+@dataclass(frozen=True)
+class FrontKneeCalculationEvidence:
+    """Coordinates and provenance for one available angle.
+
+    ``video_sha256`` is filled when the measurement report is written.
+    The angle function does not know the file hash.
+    """
+
+    schema_version: str
+    calculation: str
+    definition: str
+    frame_index: int
+    frame_timestamp_seconds: float
+    image_width_px: int
+    image_height_px: int
+    front_leg: str
+    landmark_names: tuple[str, str, str]
+    hip: LandmarkCalculationPoint
+    knee: LandmarkCalculationPoint
+    ankle: LandmarkCalculationPoint
+    angle_degrees: float
+    origin: str = "top_left"
+    positive_x: str = "right"
+    positive_y: str = "down"
+    coordinate_unit: str = "image_pixels"
+    video_sha256: str | None = None
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "calculation": self.calculation,
+            "definition": self.definition,
+            "frame_index": self.frame_index,
+            "frame_timestamp_seconds": self.frame_timestamp_seconds,
+            "image_width_px": self.image_width_px,
+            "image_height_px": self.image_height_px,
+            "front_leg": self.front_leg,
+            "landmark_names": list(self.landmark_names),
+            "hip": self.hip.to_json(),
+            "knee": self.knee.to_json(),
+            "ankle": self.ankle.to_json(),
+            "angle_degrees": self.angle_degrees,
+            "origin": self.origin,
+            "positive_x": self.positive_x,
+            "positive_y": self.positive_y,
+            "coordinate_unit": self.coordinate_unit,
+            "video_sha256": self.video_sha256,
+        }
+
+
+@dataclass(frozen=True)
 class FrontKneeAngle:
     """One phase's front-knee angle, or an explicit reason it was not calculated.
 
@@ -104,6 +187,7 @@ class FrontKneeAngle:
     warnings: tuple[str, ...] = ()
     evidence: tuple[LandmarkEvidence, ...] = ()
     review_status: str = REVIEW_UNAVAILABLE
+    calculation_evidence: FrontKneeCalculationEvidence | None = None
 
     def __post_init__(self) -> None:
         if self.metric != METRIC_NAME:
@@ -184,15 +268,21 @@ def front_knee_angle(frame: PoseFrame, front_leg: str, phase: str) -> FrontKneeA
             evidence,
         )
 
+    hip_px = _pixel_point(points["hip"], frame.image_width, frame.image_height)
+    knee_px = _pixel_point(points["knee"], frame.image_width, frame.image_height)
+    ankle_px = _pixel_point(points["ankle"], frame.image_width, frame.image_height)
     try:
-        angle = angle_abc_degrees(
-            _pixel_point(points["hip"], frame.image_width, frame.image_height),
-            _pixel_point(points["knee"], frame.image_width, frame.image_height),
-            _pixel_point(points["ankle"], frame.image_width, frame.image_height),
-        )
+        angle = angle_abc_degrees(hip_px, knee_px, ankle_px)
     except GeometryError as error:
         return _unavailable(phase, frame.frame_index, leg, str(error), warnings, evidence)
-    return _available(phase, frame.frame_index, leg, angle, warnings, evidence)
+    calculation = _calculation_evidence(
+        frame,
+        leg,
+        points,
+        {"hip": hip_px, "knee": knee_px, "ankle": ankle_px},
+        angle,
+    )
+    return _available(phase, frame.frame_index, leg, angle, warnings, evidence, calculation)
 
 
 def front_knee_angles_at_manual_phases(
@@ -341,6 +431,7 @@ def _available(
     angle: float,
     warnings: tuple[str, ...],
     evidence: tuple[LandmarkEvidence, ...],
+    calculation_evidence: FrontKneeCalculationEvidence,
 ) -> FrontKneeAngle:
     return FrontKneeAngle(
         metric=METRIC_NAME,
@@ -354,6 +445,47 @@ def _available(
         warnings=warnings,
         evidence=evidence,
         review_status=_review_status("available", warnings),
+        calculation_evidence=calculation_evidence,
+    )
+
+
+def _calculation_evidence(
+    frame: PoseFrame,
+    leg: str,
+    points: dict[str, Landmark],
+    pixels: dict[str, Point2D],
+    angle: float,
+) -> FrontKneeCalculationEvidence:
+    hip_name = f"{leg}_hip"
+    knee_name = f"{leg}_knee"
+    ankle_name = f"{leg}_ankle"
+    return FrontKneeCalculationEvidence(
+        EVIDENCE_SCHEMA_VERSION,
+        CALCULATION_ID,
+        ANGLE_DEFINITION,
+        frame.frame_index,
+        frame.timestamp_seconds,
+        frame.image_width,
+        frame.image_height,
+        leg,
+        (hip_name, knee_name, ankle_name),
+        _point("hip", hip_name, points["hip"], pixels["hip"]),
+        _point("knee", knee_name, points["knee"], pixels["knee"]),
+        _point("ankle", ankle_name, points["ankle"], pixels["ankle"]),
+        angle,
+    )
+
+
+def _point(role: str, name: str, landmark: Landmark, pixel: Point2D) -> LandmarkCalculationPoint:
+    return LandmarkCalculationPoint(
+        role,
+        name,
+        landmark.x,
+        landmark.y,
+        pixel.x,
+        pixel.y,
+        landmark.visibility,
+        landmark.presence,
     )
 
 

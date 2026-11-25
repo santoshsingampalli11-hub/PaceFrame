@@ -26,6 +26,8 @@ _DURATION_LIMIT = (
     "Estimated duration is the header frame count divided by encoded FPS. "
     "It is not a measured recording length."
 )
+DURATION_LIMIT_ERROR = "Video is longer than the allowed duration."
+FRAME_LIMIT_ERROR = "Video has more decoded frames than allowed."
 
 
 @dataclass(frozen=True)
@@ -47,12 +49,18 @@ class VideoInspection:
     error: str | None
 
 
-def inspect_video(path: str | Path) -> VideoInspection:
+def inspect_video(
+    path: str | Path,
+    *,
+    max_decoded_frames: int | None = None,
+    max_duration_seconds: float | None = None,
+) -> VideoInspection:
     """Inspect ``path`` without modifying it.
 
     A missing file, a file that will not open, or invalid header metadata is
     reported in ``error``. Counts that OpenCV does not provide are left empty
-    rather than replaced with a guess.
+    rather than replaced with a guess. Optional limits stop a long decode.
+    Callers that omit them keep the previous unbounded inspection.
     """
     video_path = Path(path)
     filename = video_path.name
@@ -70,10 +78,37 @@ def inspect_video(path: str | Path) -> VideoInspection:
     except cv2.error as error:
         return _failed(filename, f"OpenCV failed while reading {filename}: {error}")
 
+    if _over_limit(metadata.frame_count, metadata.fps, max_duration_seconds):
+        return _failed(filename, DURATION_LIMIT_ERROR)
+
     decoded = 0
     try:
         for _frame in iter_frames(video_path):
             decoded += 1
+            if max_decoded_frames is not None and decoded > max_decoded_frames:
+                return _from_metadata(
+                    filename,
+                    metadata.width,
+                    metadata.height,
+                    metadata.fps,
+                    metadata.frame_count,
+                    decoded,
+                    "premature_decode_error",
+                    (FRAME_LIMIT_ERROR,),
+                    FRAME_LIMIT_ERROR,
+                )
+            if _over_limit(decoded, metadata.fps, max_duration_seconds):
+                return _from_metadata(
+                    filename,
+                    metadata.width,
+                    metadata.height,
+                    metadata.fps,
+                    metadata.frame_count,
+                    decoded,
+                    "premature_decode_error",
+                    (DURATION_LIMIT_ERROR,),
+                    DURATION_LIMIT_ERROR,
+                )
     except VideoReadError as error:
         return _from_metadata(
             filename,
@@ -209,6 +244,12 @@ def _from_metadata(
         warnings=warnings,
         error=error,
     )
+
+
+def _over_limit(frame_count: int, fps: float, limit: float | None) -> bool:
+    if limit is None or fps <= 0:
+        return False
+    return (frame_count / fps) > limit
 
 
 def _orientation(width: int, height: int) -> str:

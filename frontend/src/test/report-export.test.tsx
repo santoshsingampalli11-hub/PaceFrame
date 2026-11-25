@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -231,6 +231,69 @@ describe("analysis report export", () => {
     expect(csv).toContain("168.126");
     expect(csv).toContain("177.754");
     expect(csv.split("\n")[0]).toContain("angle_degrees");
+  });
+
+  it("shows the stored landmark pixels used for the angle without inventing missing evidence", async () => {
+    const withEvidence: StoredMeasurement = {
+      ...stored,
+      ffc: {
+        ...stored.ffc,
+        calculation_evidence: {
+          schema_version: "front-knee-evidence-v1",
+          calculation: "angle_abc_degrees",
+          definition: "unsigned interior hip-knee-ankle angle, vertex at the knee, degrees 0 to 180",
+          frame_index: 5,
+          frame_timestamp_seconds: 0.5,
+          image_width_px: 32,
+          image_height_px: 24,
+          front_leg: "right",
+          landmark_names: ["right_hip", "right_knee", "right_ankle"],
+          hip: { role: "hip", name: "right_hip", x_normalized: 0.25, y_normalized: 0.25, x_px: 8, y_px: 6, visibility: 0.9, presence: 0.8 },
+          knee: { role: "knee", name: "right_knee", x_normalized: 0.5, y_normalized: 0.5, x_px: 16, y_px: 12, visibility: 0.85, presence: null },
+          ankle: { role: "ankle", name: "right_ankle", x_normalized: 0.5, y_normalized: 0.75, x_px: 16, y_px: 18, visibility: 0.7, presence: 0.6 },
+          angle_degrees: 91.25,
+          origin: "top_left",
+          positive_x: "right",
+          positive_y: "down",
+          coordinate_unit: "image_pixels",
+          video_sha256: "e".repeat(64),
+        },
+      },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        const path = String(url);
+        if (path.endsWith(`/api/sessions/${sessionId}`)) return jsonResponse(session);
+        if (path.endsWith("/labels")) return jsonResponse(labels);
+        if (path.endsWith("/pose-review")) return jsonResponse({ detail: "not started" }, 404);
+        if (path.endsWith("/measure")) {
+          return jsonResponse({
+            session_id: sessionId,
+            job_id: "ef".repeat(16),
+            status: "completed",
+            message: "Measurement completed.",
+            scientific_caveat: "2D only.",
+          });
+        }
+        if (path.endsWith("/report")) {
+          return jsonResponse({ session_id: sessionId, status: "completed", report: withEvidence });
+        }
+        return jsonResponse({ detail: "missing" }, 404);
+      }),
+    );
+    renderReport();
+    expect(await screen.findByText("FFC measurement evidence")).toBeInTheDocument();
+    expect(screen.queryByText("Release measurement evidence")).not.toBeInTheDocument();
+    const table = screen.getByRole("table", { name: /FFC landmark inputs/ });
+    expect(table).toHaveTextContent("Origin top_left, positive x right, positive y down, unit image_pixels");
+    const kneeRow = within(table).getByText("right_knee").closest("tr");
+    expect(kneeRow).toHaveTextContent("Knee");
+    expect(kneeRow).toHaveTextContent("16");
+    expect(kneeRow).toHaveTextContent("12");
+    expect(kneeRow).toHaveTextContent("0.85");
+    expect(kneeRow).toHaveTextContent("not stored");
+    expect(within(table).getByText("right_ankle").closest("tr")).toHaveTextContent("18");
   });
 
   it("does not offer a download when no measurement report is stored", async () => {
