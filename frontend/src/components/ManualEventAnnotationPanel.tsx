@@ -151,7 +151,10 @@ export function ManualEventAnnotationPanel({
             <select
               id="front-leg-choice"
               value={frontLeg}
-              onChange={(event) => setFrontLeg(event.target.value as "" | "left" | "right")}
+              onChange={(event) => {
+                setFrontLeg(event.target.value as "" | "left" | "right");
+                setConfirmFrontLeg(false);
+              }}
             >
               <option value="">Not selected</option>
               <option value="left">Left</option>
@@ -163,6 +166,7 @@ export function ManualEventAnnotationPanel({
             <input
               id="confirm-front-leg"
               type="checkbox"
+              disabled={!frontLeg}
               checked={confirmFrontLeg}
               onChange={(event) => setConfirmFrontLeg(event.target.checked)}
             />

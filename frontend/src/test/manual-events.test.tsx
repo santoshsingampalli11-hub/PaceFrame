@@ -176,7 +176,7 @@ describe("manual event annotation", () => {
     expect(await screen.findByRole("img", { name: "Original decoded frame 2" })).toBeInTheDocument();
   });
 
-  it("saves BFC, FFC and Release from the displayed frames", async () => {
+  it("saves displayed event frames only after confirming the current front leg", async () => {
     const puts: string[] = [];
     vi.stubGlobal(
       "fetch",
@@ -207,12 +207,23 @@ describe("manual event annotation", () => {
     await user.click(screen.getByRole("button", { name: "Next frame" }));
     await screen.findByRole("img", { name: "Original decoded frame 2" });
     await user.click(screen.getByRole("button", { name: "Mark Release" }));
-    await user.selectOptions(screen.getByLabelText("Anatomical front leg"), "left");
-    await user.click(screen.getByLabelText("I confirm this front leg"));
+    const leg = screen.getByLabelText("Anatomical front leg");
+    const confirmation = screen.getByLabelText("I confirm this front leg");
+    expect(confirmation).toBeDisabled();
+    await user.selectOptions(leg, "right");
+    await user.click(confirmation);
     await user.click(screen.getByLabelText("I confirm these labels belong to this video"));
     await user.type(screen.getByLabelText("Labeler id"), "SS");
+    await user.selectOptions(leg, "left");
+    await user.click(screen.getByRole("button", { name: "Save labels" }));
+    expect(puts).toHaveLength(0);
+    expect(confirmation).not.toBeChecked();
+    expect(screen.getByRole("alert")).toHaveTextContent("Confirm the front leg before saving.");
+
+    await user.click(confirmation);
     await user.click(screen.getByRole("button", { name: "Save labels" }));
     expect(await screen.findByText("Labels saved.")).toBeInTheDocument();
+    expect(puts).toHaveLength(1);
     expect(JSON.parse(puts[0])).toEqual({
       bfc_frame: 0,
       ffc_frame: 1,
