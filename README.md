@@ -42,10 +42,12 @@ See `backend/README.md` for virtual environment, dependencies, the pose model, F
 
 ## Submission notes
 
-- `docs/PROBLEM_STATEMENT.md`
-- `docs/NOT_BUILT_AND_WHY.md`
-- `docs/COACH_CONSULTATION.md`
+- [Problem statement](docs/PROBLEM_STATEMENT.md)
+- [Coach consultation](docs/COACH_CONSULTATION.md)
+- [Not built, and why](docs/NOT_BUILT_AND_WHY.md)
+- [Review feedback and action plan](docs/REVIEW_FEEDBACK_AND_ACTION_PLAN.md)
+- [Phase I presentation](docs/presentation/PaceFrame_Phase_I_Final.pdf)
 
-A person marks front-foot contact and release. The application does not detect those events automatically, does not give coaching recommendations, and does not claim laboratory or clinical accuracy.
+A person marks front-foot contact and release. The application does not detect those events automatically, does not give coaching recommendations, and does not claim laboratory or clinical accuracy. The consultation note is one informal conversation, not a multi-person interview study. The PDF in this repository is the Phase I presentation.
 
 Do not use the earlier moving-camera run-up clip, or broadcast stress-test footage, as validation, training data, or ground truth.
